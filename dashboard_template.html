@@ -173,8 +173,8 @@ async function bootEncrypted(url) {
     $('#go').addEventListener('click', go); $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); $('#pw').focus();
   });
   let b64;
-  try { b64 = await (await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' })).text(); }
-  catch (e) { root.innerHTML = '<div class="gate"><h1>Данные недоступны</h1><p>Не удалось загрузить файл с цифрами. Попробуйте позже.</p></div>'; return; }
+  try { const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); b64 = await r.text(); }
+  catch (e) { root.innerHTML = '<div class="gate"><h1>Данные ещё не опубликованы</h1><p>Файл с цифрами пока не загрузился. Первая сборка идёт в GitHub, попробуйте позже.</p></div>'; return; }
   let pw = sessionStorage.getItem('zd_pw') || '';
   for (;;) {
     if (!pw) pw = await gate();

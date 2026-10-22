@@ -119,8 +119,11 @@ def gc_export_start(env, path, params=None):
         j = json.loads(http('https://%s.getcourse.ru/pl/api/account/%s?%s' % (acc, path, urllib.parse.urlencode(q))))
         if j.get('success'):
             return j['info']['export_id']
-        if 'много запросов' in (j.get('error_message') or '') and attempt < 6:
+        msg = j.get('error_message') or ''
+        if 'много запросов' in msg and attempt < 6:
             log('GetCourse: лимит запросов, ждём 10 минут (%s)' % path); time.sleep(600); continue
+        if 'Уже запущен' in msg and attempt < 6:
+            log('GetCourse: предыдущая выгрузка ещё идёт, ждём 2 минуты (%s)' % path); time.sleep(120); continue
         raise RuntimeError('GetCourse %s: %s' % (path, j.get('error_message')))
 
 
@@ -139,18 +142,16 @@ def gc_export_wait(env, eid, label, minutes=25):
     raise RuntimeError('GetCourse: выгрузка %s не готова за %d мин' % (label, minutes))
 
 
-def gc_start_all(env):
-    """Все три выгрузки запускаем сразу, чтобы GetCourse готовил их параллельно."""
-    ids = {gid: gc_export_start(env, 'groups/%s/users' % gid) for gid in GROUPS}
-    ids['deals'] = gc_export_start(env, 'deals', {'created_at[from]': START.isoformat()})
-    return ids
+def gc_export(env, path, label, params=None):
+    """GetCourse выполняет только одну выгрузку за раз, поэтому строго по очереди: запустить → дождаться."""
+    return gc_export_wait(env, gc_export_start(env, path, params), label)
 
 
-def gc_members(env, exports):
+def gc_members(env):
     """email → {funnel, date, source, medium, campaign}; первая регистрация побеждает."""
     members = {}
     for gid, funnel in GROUPS.items():
-        rows = gc_export_wait(env, exports[gid], 'группа ' + funnel)
+        rows = gc_export(env, 'groups/%s/users' % gid, 'группа ' + funnel)
         for r in rows:
             email = (r.get('Email') or '').strip().lower()
             added = (r.get('Добавлен в группу') or r.get('Создан') or '')[:10]
@@ -166,10 +167,10 @@ def gc_members(env, exports):
     return members
 
 
-def gc_orders(env, members, exports):
+def gc_orders(env, members):
     """{(date, funnel, source, medium, campaign): {orders, paid, revenue}}"""
     out = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
-    rows = gc_export_wait(env, exports['deals'], 'заказы')
+    rows = gc_export(env, 'deals', 'заказы', {'created_at[from]': START.isoformat()})
     n = 0
     for r in rows:
         if COURSE_MARK not in (r.get('Состав заказа') or ''): continue
@@ -267,10 +268,9 @@ def spend():
 
 # ---------------------------------------------------------------- сборка
 def build(env):
-    exports = gc_start_all(env)
     parts = {'metrika': metrika(env)}
-    members = gc_members(env, exports)
-    parts.update({'orders': gc_orders(env, members, exports), 'bizon': bizon(env, members), 'spend': spend()})
+    members = gc_members(env)
+    parts.update({'orders': gc_orders(env, members), 'bizon': bizon(env, members), 'spend': spend()})
     rows = defaultdict(lambda: {'visits': 0, 'form_open': 0, 'lead_goal': 0, 'leads': 0, 'attended': 0, 'attended30': 0, 'orders': 0, 'paid': 0, 'revenue': 0.0, 'spend': 0.0})
     for k, v in parts['metrika'].items(): rows[k].update({x: rows[k][x] + v[x] for x in v})
     for m in members.values():
