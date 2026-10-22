@@ -1,0 +1,39 @@
+name: dashboard
+
+on:
+  schedule:
+    - cron: '30 6 * * *'   # 09:30 МСК каждый день
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: dashboard
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Собрать данные
+        env:
+          GETCOURSE_ACCOUNT: artemzuev
+          METRIKA_COUNTER_ADS: '113735882'
+          METRIKA_COUNTER_ORGANIC: '113735885'
+          GETCOURSE_KEY: ${{ secrets.GETCOURSE_KEY }}
+          BIZON_TOKEN: ${{ secrets.BIZON_TOKEN }}
+          METRIKA_TOKEN: ${{ secrets.METRIKA_TOKEN }}
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+          EXCLUDE_EMAILS: ${{ secrets.EXCLUDE_EMAILS }}
+        run: python update_dashboard.py
+      - name: Опубликовать зашифрованные данные
+        run: |
+          git config user.name 'dashboard-bot'
+          git config user.email 'dashboard-bot@users.noreply.github.com'
+          git add docs/data.enc docs/index.html
+          git diff --cached --quiet && echo 'без изменений' || (git commit -m "data: $(date -u +'%Y-%m-%d %H:%M') UTC" && git push)
