@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Воронка «Облигации 2026»</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+:root{--ink:#14130F;--text:#45413A;--mute:#6B6658;--green:#2F7D52;--green-lt:#E6EFE8;--line:#DEDACF;--cream:#F5F3EE;--card:#fff;--red:#B4472F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-apple-system,"Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.45}
+.zd{max-width:1240px;margin:0 auto;padding:24px 16px 60px}
+.zd header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+.zd h1{margin:0;font-size:24px;letter-spacing:-.02em;font-weight:800}
+.zd .sub{color:var(--mute);font-size:13px;margin-top:4px}
+.zd .filters{display:flex;flex-wrap:wrap;gap:8px}
+.zd .filters select,.zd .filters button{font:inherit;font-weight:600;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;color:var(--ink);cursor:pointer}
+.zd .filters button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.zd .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.zd .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px}
+.zd .kpi b{display:block;font-size:24px;letter-spacing:-.02em;line-height:1.1}
+.zd .kpi span{display:block;color:var(--mute);font-size:12px;margin-top:4px}
+.zd .kpi small{display:block;color:var(--green);font-size:12px;font-weight:700;margin-top:2px;min-height:15px}
+.zd .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+.zd .card h2{margin:0 0 12px;font-size:16px;font-weight:800}
+.zd .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.zd .grid2{grid-template-columns:1fr}}
+.zd table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+.zd th,.zd td{padding:8px 8px;text-align:right;border-bottom:1px solid #EEEBE3;white-space:nowrap}
+.zd th:first-child,.zd td:first-child{text-align:left}
+.zd th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:700}
+.zd tr.tot td{font-weight:800;background:var(--green-lt)}
+.zd .tblwrap{overflow-x:auto}
+.zd .funnel{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.zd .step{background:var(--green-lt);border-radius:10px;padding:10px;text-align:center}
+.zd .step b{display:block;font-size:20px}
+.zd .step span{font-size:11px;color:var(--mute)}
+.zd .step i{display:block;font-style:normal;font-size:12px;font-weight:700;color:var(--green)}
+@media(max-width:700px){.zd .funnel{grid-template-columns:repeat(3,1fr)}}
+.zd svg text{font-family:inherit}
+.zd .legend{display:flex;gap:14px;font-size:12px;color:var(--mute);margin-top:6px;flex-wrap:wrap}
+.zd .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.zd .defs{font-size:13px;color:var(--text)}
+.zd .defs dt{font-weight:700;margin-top:8px}
+.zd .defs dd{margin:2px 0 0}
+.zd .warn{background:#FFF4E5;color:#6B4A12;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.zd .gate{max-width:380px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:18px;padding:28px 24px;text-align:center}
+.zd .gate h1{font-size:20px;margin-bottom:6px}
+.zd .gate p{color:var(--mute);font-size:13px;margin:0 0 16px}
+.zd .gate input{width:100%;font:inherit;font-size:16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+.zd .gate button{width:100%;font:inherit;font-weight:700;font-size:15px;padding:13px;border:0;border-radius:12px;background:var(--green);color:#fff;cursor:pointer}
+.zd .gate .err{color:var(--red);font-size:13px;min-height:18px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="zd" id="zd"></div>
+<script>
+(function(){
+const root = document.getElementById('zd');
+const $ = s => root.querySelector(s);
+const fmt = n => (Math.round(n)).toLocaleString('ru-RU');
+const money = n => fmt(n) + ' ₽';
+const pct = (a, b) => b ? (100 * a / b).toFixed(1).replace('.', ',') + '%' : '—';
+const M = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue', 'spend'];
+let rows = [], period = 30;
+
+const LAYOUT = `
+<header>
+  <div><h1>Воронка «Облигации 2026»</h1><div class="sub" id="sub"></div></div>
+  <div class="filters">
+    <select id="fFunnel"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
+    <select id="fSource"><option value="">Все источники</option></select>
+    <select id="fMedium"><option value="">Все каналы</option></select>
+    <button data-p="7">7 дней</button><button data-p="14">14 дней</button><button data-p="30" class="on">30 дней</button><button data-p="0">Всё время</button>
+  </div>
+</header>
+<div id="warn" class="warn" hidden></div>
+<div class="kpis" id="kpis"></div>
+<div class="card"><h2>Шаги воронки</h2><div class="funnel" id="funnel"></div></div>
+<div class="grid2">
+  <div class="card"><h2>По дням: регистрации и оплаты</h2><div id="chart"></div><div class="legend"><span><i style="background:#2F7D52"></i>Регистрации</span><span><i style="background:#A9CBB8"></i>Пришли на эфир</span><span><i style="background:#14130F"></i>Оплаты</span></div></div>
+  <div class="card"><h2>По источникам</h2><div class="tblwrap"><table id="tSrc"></table></div></div>
+</div>
+<div class="card"><h2>По дням</h2><div class="tblwrap"><table id="tDay"></table></div></div>
+<div class="card defs"><h2>Как считается</h2>
+<dl>
+<dt>Визиты, открыл форму, цель «лид»</dt><dd>Яндекс Метрика, счётчики рекламы и органики, по UTM визита.</dd>
+<dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама» или «…органика». Первая регистрация побеждает, тестовые адреса исключены.</dd>
+<dt>Пришли / 30+ мин</dt><dd>Бизон: зрители эфиров bonds, bonds-10, bonds-15, bonds-17; человек считается один раз в день; «30+ мин» — суммарный просмотр от 30 минут. Источник берётся из карточки GetCourse по email.</dd>
+<dt>Заказы / оплаты / выручка</dt><dd>GetCourse: заказы тарифов «Облигации: пошаговая сборка портфеля». Оплата — статус «Завершён» или «Частично оплачен» (рассрочка и предоплата считаются покупкой). Отменённые и ложные не учитываются.</dd>
+<dt>Расход, CPL, CAC, ROMI</dt><dd>Из файла spend.csv в репозитории (дата;воронка;источник;канал;сумма). CPL = расход / регистрации, CAC = расход / оплаты, ROMI = (выручка − расход) / расход.</dd>
+<dt>Воронка и источник</dt><dd>Воронка — по группе GetCourse. Источник и канал — UTM пользователя (ставит Vakas при регистрации): для ботов в Telegram и MAX канал будет telegram / max.</dd>
+</dl></div>`;
+
+function init(DATA) {
+  rows = (DATA && DATA.rows) || [];
+  root.innerHTML = LAYOUT;
+  $('#sub').textContent = DATA ? 'Обновлено ' + DATA.generated + ' МСК · данные с ' + DATA.start.split('-').reverse().join('.') : 'Нет данных';
+  if (!rows.length) { $('#warn').hidden = false; $('#warn').textContent = 'Данных пока нет: сборка ещё не прошла или за период пусто.'; }
+  const fill = (sel, vals) => { const s = $(sel); [...new Set(vals)].sort().forEach(v => { const o = document.createElement('option'); o.textContent = v; s.appendChild(o); }); };
+  fill('#fSource', rows.map(r => r.source)); fill('#fMedium', rows.map(r => r.medium));
+  ['#fFunnel', '#fSource', '#fMedium'].forEach(s => $(s).addEventListener('change', draw));
+  root.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('.filters button').forEach(x => x.classList.remove('on')); b.classList.add('on'); period = +b.dataset.p; draw(); }));
+  draw();
+}
+function filtered() {
+  const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value;
+  let from = '';
+  if (period) { const d = new Date(); d.setDate(d.getDate() - period + 1); from = d.toISOString().slice(0, 10); }
+  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m) && (!from || r.date >= from));
+}
+function sum(list) { const t = {}; M.forEach(k => t[k] = 0); list.forEach(r => M.forEach(k => t[k] += +r[k] || 0)); return t; }
+function group(list, key) { const g = {}; list.forEach(r => { const k = r[key]; (g[k] = g[k] || []).push(r); }); return Object.keys(g).sort().map(k => ({ key: k, t: sum(g[k]) })); }
+function draw() {
+  const list = filtered(), t = sum(list);
+  const cpl = t.spend && t.leads ? t.spend / t.leads : 0, cac = t.spend && t.paid ? t.spend / t.paid : 0;
+  const romi = t.spend ? (t.revenue - t.spend) / t.spend : null;
+  $('#kpis').innerHTML = [
+    ['Визиты', fmt(t.visits), ''], ['Регистрации', fmt(t.leads), 'CR ' + pct(t.leads, t.visits)],
+    ['Пришли на эфир', fmt(t.attended), pct(t.attended, t.leads) + ' от регистраций'], ['30+ минут', fmt(t.attended30), pct(t.attended30, t.attended) + ' от пришедших'],
+    ['Заказы', fmt(t.orders), ''], ['Оплаты', fmt(t.paid), pct(t.paid, t.attended) + ' от пришедших'],
+    ['Выручка', money(t.revenue), t.paid ? 'средний чек ' + money(t.revenue / t.paid) : ''],
+    ['Расход', money(t.spend), t.spend ? 'CPL ' + money(cpl) + ' · CAC ' + money(cac) : 'spend.csv пуст'],
+    ['ROMI', romi === null ? '—' : pct(romi, 1).replace('%', '') + '%', '']
+  ].map(k => `<div class="kpi"><b>${k[1]}</b><span>${k[0]}</span><small>${k[2]}</small></div>`).join('');
+  const steps = [['Визиты', t.visits], ['Открыли форму', t.form_open], ['Регистрации', t.leads], ['Пришли', t.attended], ['30+ мин', t.attended30], ['Оплатили', t.paid]];
+  $('#funnel').innerHTML = steps.map((s, i) => `<div class="step"><b>${fmt(s[1])}</b><span>${s[0]}</span><i>${i ? pct(s[1], steps[i - 1][1]) : '&nbsp;'}</i></div>`).join('');
+  const days = group(list, 'date');
+  chart(days); table('#tDay', days, d => d.key.split('-').reverse().join('.'), 'Дата');
+  const srcs = group(list, 'source').sort((a, b) => b.t.leads - a.t.leads);
+  table('#tSrc', srcs, s => s.key, 'Источник', true);
+}
+function table(sel, groups, label, head, compact) {
+  const cols = compact ? [['visits', 'Визиты'], ['leads', 'Рег.'], ['attended', 'Пришли'], ['paid', 'Оплат'], ['revenue', 'Выручка'], ['spend', 'Расход']]
+    : [['visits', 'Визиты'], ['form_open', 'Форма'], ['leads', 'Рег.'], ['attended', 'Пришли'], ['attended30', '30+ мин'], ['orders', 'Заказы'], ['paid', 'Оплаты'], ['revenue', 'Выручка'], ['spend', 'Расход']];
+  const cell = (k, v) => (k === 'revenue' || k === 'spend') ? money(v) : fmt(v);
+  const tot = sum(groups.map(g => g.t));
+  $(sel).innerHTML = '<tr><th>' + head + '</th>' + cols.map(c => '<th>' + c[1] + '</th>').join('') + (compact ? '<th>CR рег→опл</th>' : '') + '</tr>'
+    + groups.map(g => '<tr><td>' + label(g) + '</td>' + cols.map(c => '<td>' + cell(c[0], g.t[c[0]]) + '</td>').join('') + (compact ? '<td>' + pct(g.t.paid, g.t.leads) + '</td>' : '') + '</tr>').join('')
+    + '<tr class="tot"><td>Итого</td>' + cols.map(c => '<td>' + cell(c[0], tot[c[0]]) + '</td>').join('') + (compact ? '<td>' + pct(tot.paid, tot.leads) + '</td>' : '') + '</tr>';
+}
+function chart(days) {
+  const W = 560, H = 220, pl = 36, pb = 28, n = days.length;
+  if (!n) { $('#chart').innerHTML = '<div class="sub">Нет данных за период</div>'; return; }
+  const max = Math.max(1, ...days.map(d => d.t.leads));
+  const bw = (W - pl - 10) / n, x = i => pl + i * bw, y = v => H - pb - (H - pb - 14) * v / max;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+  [0, .5, 1].forEach(g => { s += `<line x1="${pl}" x2="${W - 6}" y1="${y(max * g)}" y2="${y(max * g)}" stroke="#EEEBE3"/><text x="${pl - 6}" y="${y(max * g) + 4}" font-size="10" fill="#6B6658" text-anchor="end">${fmt(max * g)}</text>`; });
+  days.forEach((d, i) => {
+    s += `<rect x="${x(i) + bw * .15}" y="${y(d.t.leads)}" width="${bw * .7}" height="${H - pb - y(d.t.leads)}" rx="3" fill="#2F7D52"/>`;
+    s += `<rect x="${x(i) + bw * .15}" y="${y(d.t.attended)}" width="${bw * .7}" height="${H - pb - y(d.t.attended)}" rx="3" fill="#A9CBB8"/>`;
+    if (d.t.paid) s += `<circle cx="${x(i) + bw / 2}" cy="${y(d.t.paid)}" r="4" fill="#14130F"/>`;
+    if (n <= 16 || i % Math.ceil(n / 16) === 0) s += `<text x="${x(i) + bw / 2}" y="${H - 8}" font-size="10" fill="#6B6658" text-anchor="middle">${d.key.slice(8, 10)}.${d.key.slice(5, 7)}</text>`;
+  });
+  $('#chart').innerHTML = s + '</svg>';
+}
+
+/* ---- зашифрованные данные: пароль → PBKDF2-SHA256 (200 000) → AES-256-GCM; формат base64(salt16 + iv12 + ct) ---- */
+async function decrypt(b64, password) {
+  const raw = Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
+  const salt = raw.slice(0, 16), iv = raw.slice(16, 28), ct = raw.slice(28);
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function bootEncrypted(url) {
+  const gate = () => new Promise(res => {
+    root.innerHTML = '<div class="gate"><h1>Воронка «Облигации 2026»</h1><p>Введите пароль, чтобы увидеть цифры</p><input type="password" id="pw" placeholder="Пароль" autocomplete="current-password"><button id="go">Открыть</button><div class="err" id="err"></div></div>';
+    const go = () => res($('#pw').value);
+    $('#go').addEventListener('click', go); $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); $('#pw').focus();
+  });
+  let b64;
+  try { const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); b64 = await r.text(); }
+  catch (e) { root.innerHTML = '<div class="gate"><h1>Данные ещё не опубликованы</h1><p>Файл с цифрами пока не загрузился. Первая сборка идёт в GitHub, попробуйте позже.</p></div>'; return; }
+  let pw = sessionStorage.getItem('zd_pw') || '';
+  for (;;) {
+    if (!pw) pw = await gate();
+    try { const data = await decrypt(b64, pw); sessionStorage.setItem('zd_pw', pw); init(data); return; }
+    catch (e) { sessionStorage.removeItem('zd_pw'); pw = ''; root.innerHTML = ''; const p = gate(); setTimeout(() => { const er = $('#err'); if (er) er.textContent = 'Неверный пароль'; }, 0); pw = await p; }
+  }
+}
+window.zdInit = init; window.zdBootEncrypted = bootEncrypted;
+const DATA_URL = (window.DASHBOARD_DATA_URL || 'data.enc'); bootEncrypted(DATA_URL);
+})();
+</script>
+</body>
+</html>
