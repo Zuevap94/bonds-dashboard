@@ -8,36 +8,48 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
 <style>
-:root{--ink:#14130F;--text:#45413A;--mute:#6B6658;--green:#2F7D52;--green-lt:#E6EFE8;--line:#DEDACF;--cream:#F5F3EE;--card:#fff;--red:#B4472F}
-*{box-sizing:border-box}
+:root{--ink:#14130F;--text:#45413A;--mute:#6B6658;--green:#2F7D52;--green-lt:#E6EFE8;--line:#DEDACF;--cream:#F5F3EE;--card:#fff;--red:#B4472F;--amber:#B7791F;--amber-lt:#FFF4E5}
 body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-apple-system,"Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.45}
+.zd *{box-sizing:border-box}
 .zd{max-width:1240px;margin:0 auto;padding:24px 16px 60px}
-.zd header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+.zd header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
 .zd h1{margin:0;font-size:24px;letter-spacing:-.02em;font-weight:800}
 .zd .sub{color:var(--mute);font-size:13px;margin-top:4px}
-.zd .filters{display:flex;flex-wrap:wrap;gap:8px}
+.zd .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .zd .filters select,.zd .filters button{font:inherit;font-weight:600;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;color:var(--ink);cursor:pointer}
 .zd .filters button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.zd .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
-.zd .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px}
-.zd .kpi b{display:block;font-size:24px;letter-spacing:-.02em;line-height:1.1}
+.zd .filters .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.zd .sec{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:800;margin:14px 0 8px}
+.zd .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.zd .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;min-width:0}
+.zd .kpi b{display:block;font-size:24px;letter-spacing:-.02em;line-height:1.1;white-space:nowrap}
 .zd .kpi span{display:block;color:var(--mute);font-size:12px;margin-top:4px}
-.zd .kpi small{display:block;color:var(--green);font-size:12px;font-weight:700;margin-top:2px;min-height:15px}
-.zd .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
-.zd .card h2{margin:0 0 12px;font-size:16px;font-weight:800}
+.zd .kpi small{display:block;font-size:12px;font-weight:700;margin-top:3px;min-height:15px;color:var(--mute)}
+.zd .kpi small.up{color:var(--green)}.zd .kpi small.down{color:var(--red)}
+.zd .kpi.money{background:var(--ink);border-color:var(--ink);color:#fff}
+.zd .kpi.money span{color:#B9B4A6}.zd .kpi.money small{color:#B9B4A6}.zd .kpi.money small.up{color:#9ED3B3}.zd .kpi.money small.down{color:#F0A08E}
+.zd .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:16px}
+.zd .card h2{margin:0 0 12px;font-size:16px;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.zd .card h2 .tabs{display:flex;gap:4px;flex-wrap:wrap}
+.zd .card h2 .tabs button{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--text)}
+.zd .card h2 .tabs button.on{background:var(--green-lt);border-color:var(--green);color:var(--green)}
 .zd .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:860px){.zd .grid2{grid-template-columns:1fr}}
+.zd .grid2 .card{margin-top:0}
 .zd table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
 .zd th,.zd td{padding:8px 8px;text-align:right;border-bottom:1px solid #EEEBE3;white-space:nowrap}
 .zd th:first-child,.zd td:first-child{text-align:left}
 .zd th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:700}
+.zd td.pc{color:var(--mute)}
 .zd tr.tot td{font-weight:800;background:var(--green-lt)}
 .zd .tblwrap{overflow-x:auto}
 .zd .funnel{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-.zd .step{background:var(--green-lt);border-radius:10px;padding:10px;text-align:center}
+.zd .step{background:var(--green-lt);border-radius:10px;padding:10px;text-align:center;min-width:0}
 .zd .step b{display:block;font-size:20px}
 .zd .step span{font-size:11px;color:var(--mute)}
 .zd .step i{display:block;font-style:normal;font-size:12px;font-weight:700;color:var(--green)}
+.zd .step i.low{color:var(--red)}
+.zd .step em{display:block;font-style:normal;font-size:10px;color:var(--mute);margin-top:2px}
 @media(max-width:700px){.zd .funnel{grid-template-columns:repeat(3,1fr)}}
 .zd svg text{font-family:inherit}
 .zd .legend{display:flex;gap:14px;font-size:12px;color:var(--mute);margin-top:6px;flex-wrap:wrap}
@@ -45,7 +57,9 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .defs{font-size:13px;color:var(--text)}
 .zd .defs dt{font-weight:700;margin-top:8px}
 .zd .defs dd{margin:2px 0 0}
-.zd .warn{background:#FFF4E5;color:#6B4A12;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.zd .warn{background:var(--amber-lt);color:#6B4A12;border-radius:10px;padding:10px 12px;font-size:13px;margin:12px 0 0}
+.zd .quality{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--mute);margin-top:14px}
+.zd .quality b{color:var(--text)}
 .zd .gate{max-width:380px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:18px;padding:28px 24px;text-align:center}
 .zd .gate h1{font-size:20px;margin-bottom:6px}
 .zd .gate p{color:var(--mute);font-size:13px;margin:0 0 16px}
@@ -61,10 +75,12 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 const root = document.getElementById('zd');
 const $ = s => root.querySelector(s);
 const fmt = n => (Math.round(n)).toLocaleString('ru-RU');
-const money = n => fmt(n) + ' ₽';
+const money = n => fmt(n) + '\u00a0₽';
 const pct = (a, b) => b ? (100 * a / b).toFixed(1).replace('.', ',') + '%' : '—';
-const M = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue', 'spend'];
-let rows = [], period = 30;
+const M = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue', 'spend', 'c_attended', 'c_attended30', 'c_paid', 'c_revenue'];
+/* ориентиры для бесплатного вебинара: нижняя граница нормы, ниже — красным */
+const BENCH = { lead: [0.15, '15–30%'], attend: [0.25, '25–45%'], stay: [0.5, '50–70%'], buy: [0.03, '3–8%'] };
+let DATA = null, rows = [], period = 30, cut = 'source';
 
 const LAYOUT = `
 <header>
@@ -73,88 +89,170 @@ const LAYOUT = `
     <select id="fFunnel"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
     <select id="fSource"><option value="">Все источники</option></select>
     <select id="fMedium"><option value="">Все каналы</option></select>
+    <span class="sep"></span>
     <button data-p="7">7 дней</button><button data-p="14">14 дней</button><button data-p="30" class="on">30 дней</button><button data-p="0">Всё время</button>
+    <span class="sep"></span>
+    <button id="csv" title="Скачать строки за выбранный период">CSV</button>
   </div>
 </header>
 <div id="warn" class="warn" hidden></div>
-<div class="kpis" id="kpis"></div>
-<div class="card"><h2>Шаги воронки</h2><div class="funnel" id="funnel"></div></div>
-<div class="grid2">
-  <div class="card"><h2>По дням: регистрации и оплаты</h2><div id="chart"></div><div class="legend"><span><i style="background:#2F7D52"></i>Регистрации</span><span><i style="background:#A9CBB8"></i>Пришли на эфир</span><span><i style="background:#14130F"></i>Оплаты</span></div></div>
-  <div class="card"><h2>По источникам</h2><div class="tblwrap"><table id="tSrc"></table></div></div>
+<div class="sec">Деньги за период <span id="cmpNote" style="font-weight:600;text-transform:none;letter-spacing:0"></span></div>
+<div class="kpis" id="kMoney"></div>
+<div class="sec">Воронка за период</div>
+<div class="kpis" id="kFunnel"></div>
+<div class="card"><h2>Шаги воронки <span class="tabs"><span style="font-size:11px;color:var(--mute);font-weight:600">под каждым шагом — конверсия из предыдущего и ориентир рынка</span></span></h2><div class="funnel" id="funnel"></div></div>
+<div class="grid2" style="margin-top:16px">
+  <div class="card"><h2>По дням: регистрации и эфир</h2><div id="chart"></div><div class="legend"><span><i style="background:#2F7D52"></i>Регистрации</span><span><i style="background:#A9CBB8"></i>Пришли на эфир</span><span><i style="background:#14130F"></i>Оплаты</span></div></div>
+  <div class="card"><h2>По дням: деньги</h2><div id="chart2"></div><div class="legend"><span><i style="background:#2F7D52"></i>Выручка</span><span><i style="background:#D89A87"></i>Расход</span></div></div>
 </div>
-<div class="card"><h2>По дням</h2><div class="tblwrap"><table id="tDay"></table></div></div>
+<div class="card"><h2><span>Разрез</span><span class="tabs" id="cuts"><button data-c="source" class="on">Источник</button><button data-c="medium">Канал</button><button data-c="campaign">Кампания</button><button data-c="funnel">Воронка</button></span></h2><div class="tblwrap"><table id="tCut"></table></div><div class="sub" style="margin-top:8px">Пришли и оплатили здесь считаются по когорте: что стало с людьми, которые зарегистрировались из этого источника за период. CPL = расход / регистрации, CAC = расход / оплаты, ROMI = (выручка − расход) / расход.</div></div>
+<div class="card"><h2>По дням</h2><div class="tblwrap"><table id="tDay"></table></div><div class="sub" style="margin-top:8px">«Пришли», «30+ мин» и «Оплаты» — по дате события (эфира, оплаты). «Когорта» — сколько из зарегистрировавшихся в этот день в итоге пришли и купили.</div></div>
+<div class="quality" id="quality"></div>
 <div class="card defs"><h2>Как считается</h2>
 <dl>
-<dt>Визиты, открыл форму, цель «лид»</dt><dd>Яндекс Метрика, счётчики рекламы и органики, по UTM визита.</dd>
+<dt>Визиты, открыл форму</dt><dd>Яндекс Метрика, счётчики рекламы и органики, по UTM визита.</dd>
 <dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама» или «…органика». Первая регистрация побеждает, тестовые адреса исключены.</dd>
 <dt>Пришли / 30+ мин</dt><dd>Бизон: зрители эфиров bonds, bonds-10, bonds-15, bonds-17; человек считается один раз в день; «30+ мин» — суммарный просмотр от 30 минут. Источник берётся из карточки GetCourse по email.</dd>
 <dt>Заказы / оплаты / выручка</dt><dd>GetCourse: заказы тарифов «Облигации: пошаговая сборка портфеля». Оплата — статус «Завершён» или «Частично оплачен» (рассрочка и предоплата считаются покупкой). Отменённые и ложные не учитываются.</dd>
-<dt>Расход, CPL, CAC, ROMI</dt><dd>Из файла spend.csv в репозитории (дата;воронка;источник;канал;сумма). CPL = расход / регистрации, CAC = расход / оплаты, ROMI = (выручка − расход) / расход.</dd>
-<dt>Воронка и источник</dt><dd>Воронка — по группе GetCourse. Источник и канал — UTM пользователя (ставит Vakas при регистрации): для ботов в Telegram и MAX канал будет telegram / max.</dd>
+<dt>Расход и прибыль</dt><dd>Расход — из spend.csv в репозитории (дата;воронка;источник;канал;сумма). Прибыль = выручка − расход на рекламу, без учёта налогов и комиссий.</dd>
+<dt>Сравнение</dt><dd>Стрелки у показателей — изменение к предыдущему периоду той же длины.</dd>
+<dt>Ориентиры</dt><dd>Типичные значения для бесплатных вебинаров в инфобизнесе: регистрация 15–30% от визитов, доходимость 25–45%, досматривают 30+ минут 50–70%, покупают 3–8% от пришедших. Это не план, а подсказка, где искать проблему.</dd>
+<dt>Воронка и источник</dt><dd>Воронка — по группе GetCourse. Источник, канал и кампания — UTM пользователя (ставит Vakas при регистрации): для ботов в Telegram и MAX канал будет telegram / max.</dd>
 </dl></div>`;
 
-function init(DATA) {
-  rows = (DATA && DATA.rows) || [];
+function init(data) {
+  DATA = data; rows = (data && data.rows) || [];
   root.innerHTML = LAYOUT;
-  $('#sub').textContent = DATA ? 'Обновлено ' + DATA.generated + ' МСК · данные с ' + DATA.start.split('-').reverse().join('.') : 'Нет данных';
+  $('#sub').textContent = data ? 'Обновлено ' + data.generated + ' МСК · данные с ' + data.start.split('-').reverse().join('.') + ' · обновление ' + ((data.meta || {}).next_run || 'ежедневно') : 'Нет данных';
   if (!rows.length) { $('#warn').hidden = false; $('#warn').textContent = 'Данных пока нет: сборка ещё не прошла или за период пусто.'; }
   const fill = (sel, vals) => { const s = $(sel); [...new Set(vals)].sort().forEach(v => { const o = document.createElement('option'); o.textContent = v; s.appendChild(o); }); };
   fill('#fSource', rows.map(r => r.source)); fill('#fMedium', rows.map(r => r.medium));
   ['#fFunnel', '#fSource', '#fMedium'].forEach(s => $(s).addEventListener('change', draw));
-  root.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('.filters button').forEach(x => x.classList.remove('on')); b.classList.add('on'); period = +b.dataset.p; draw(); }));
+  root.querySelectorAll('.filters button[data-p]').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('.filters button[data-p]').forEach(x => x.classList.remove('on')); b.classList.add('on'); period = +b.dataset.p; draw(); }));
+  root.querySelectorAll('#cuts button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#cuts button').forEach(x => x.classList.remove('on')); b.classList.add('on'); cut = b.dataset.c; draw(); }));
+  $('#csv').addEventListener('click', exportCsv);
   draw();
 }
-function filtered() {
-  const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value;
-  let from = '';
-  if (period) { const d = new Date(); d.setDate(d.getDate() - period + 1); from = d.toISOString().slice(0, 10); }
-  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m) && (!from || r.date >= from));
+function range() {
+  if (!period) return ['', ''];
+  const d = new Date(); d.setDate(d.getDate() - period + 1);
+  const from = d.toISOString().slice(0, 10); d.setDate(d.getDate() - period);
+  return [from, d.toISOString().slice(0, 10)];
 }
+function base() {
+  const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value;
+  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m));
+}
+function filtered() { const [from] = range(); return base().filter(r => !from || r.date >= from); }
+function previous() { const [from, pfrom] = range(); if (!from) return []; return base().filter(r => r.date >= pfrom && r.date < from); }
 function sum(list) { const t = {}; M.forEach(k => t[k] = 0); list.forEach(r => M.forEach(k => t[k] += +r[k] || 0)); return t; }
 function group(list, key) { const g = {}; list.forEach(r => { const k = r[key]; (g[k] = g[k] || []).push(r); }); return Object.keys(g).sort().map(k => ({ key: k, t: sum(g[k]) })); }
-function draw() {
-  const list = filtered(), t = sum(list);
-  const cpl = t.spend && t.leads ? t.spend / t.leads : 0, cac = t.spend && t.paid ? t.spend / t.paid : 0;
-  const romi = t.spend ? (t.revenue - t.spend) / t.spend : null;
-  $('#kpis').innerHTML = [
-    ['Визиты', fmt(t.visits), ''], ['Регистрации', fmt(t.leads), 'CR ' + pct(t.leads, t.visits)],
-    ['Пришли на эфир', fmt(t.attended), pct(t.attended, t.leads) + ' от регистраций'], ['30+ минут', fmt(t.attended30), pct(t.attended30, t.attended) + ' от пришедших'],
-    ['Заказы', fmt(t.orders), ''], ['Оплаты', fmt(t.paid), pct(t.paid, t.attended) + ' от пришедших'],
-    ['Выручка', money(t.revenue), t.paid ? 'средний чек ' + money(t.revenue / t.paid) : ''],
-    ['Расход', money(t.spend), t.spend ? 'CPL ' + money(cpl) + ' · CAC ' + money(cac) : 'spend.csv пуст'],
-    ['ROMI', romi === null ? '—' : pct(romi, 1).replace('%', '') + '%', '']
-  ].map(k => `<div class="kpi"><b>${k[1]}</b><span>${k[0]}</span><small>${k[2]}</small></div>`).join('');
-  const steps = [['Визиты', t.visits], ['Открыли форму', t.form_open], ['Регистрации', t.leads], ['Пришли', t.attended], ['30+ мин', t.attended30], ['Оплатили', t.paid]];
-  $('#funnel').innerHTML = steps.map((s, i) => `<div class="step"><b>${fmt(s[1])}</b><span>${s[0]}</span><i>${i ? pct(s[1], steps[i - 1][1]) : '&nbsp;'}</i></div>`).join('');
-  const days = group(list, 'date');
-  chart(days); table('#tDay', days, d => d.key.split('-').reverse().join('.'), 'Дата');
-  const srcs = group(list, 'source').sort((a, b) => b.t.leads - a.t.leads);
-  table('#tSrc', srcs, s => s.key, 'Источник', true);
+function delta(cur, prev, moneyFmt) {
+  if (!period || (!prev && !cur)) return ['', ''];
+  if (!prev) return ['new', 'было 0'];
+  const d = (cur - prev) / prev;
+  const sign = d > 0 ? '▲ ' : d < 0 ? '▼ ' : '';
+  return [d > 0 ? 'up' : d < 0 ? 'down' : '', sign + Math.abs(Math.round(d * 100)) + '% (было ' + (moneyFmt ? money(prev) : fmt(prev)) + ')'];
 }
-function table(sel, groups, label, head, compact) {
-  const cols = compact ? [['visits', 'Визиты'], ['leads', 'Рег.'], ['attended', 'Пришли'], ['paid', 'Оплат'], ['revenue', 'Выручка'], ['spend', 'Расход']]
-    : [['visits', 'Визиты'], ['form_open', 'Форма'], ['leads', 'Рег.'], ['attended', 'Пришли'], ['attended30', '30+ мин'], ['orders', 'Заказы'], ['paid', 'Оплаты'], ['revenue', 'Выручка'], ['spend', 'Расход']];
-  const cell = (k, v) => (k === 'revenue' || k === 'spend') ? money(v) : fmt(v);
+function kpi(cls, val, label, hint, dcls) { return `<div class="kpi ${cls}"><b>${val}</b><span>${label}</span><small class="${dcls || ''}">${hint || ''}</small></div>`; }
+function draw() {
+  const list = filtered(), t = sum(list), p = sum(previous());
+  $('#cmpNote').textContent = period ? '· сравнение с предыдущими ' + period + ' дн.' : '';
+  const profit = t.revenue - t.spend, pprofit = p.revenue - p.spend;
+  const romi = t.spend ? (t.revenue - t.spend) / t.spend : null;
+  const cac = t.paid && t.spend ? t.spend / t.paid : 0, pcac = p.paid && p.spend ? p.spend / p.paid : 0;
+  const cpl = t.leads && t.spend ? t.spend / t.leads : 0, pcpl = p.leads && p.spend ? p.spend / p.leads : 0;
+  let d;
+  d = delta(t.revenue, p.revenue, true);
+  let html = kpi('money', money(t.revenue), 'Выручка', d[1], d[0]);
+  d = delta(t.spend, p.spend, true); html += kpi('money', money(t.spend), 'Расход на рекламу', t.spend ? d[1] : 'spend.csv пуст', t.spend ? (d[0] === 'up' ? 'down' : d[0] === 'down' ? 'up' : '') : '');
+  d = delta(profit, pprofit, true); html += kpi('money', money(profit), 'Прибыль (выручка − расход)', d[1], d[0]);
+  html += kpi('money', romi === null ? '—' : Math.round(romi * 100) + '%', 'ROMI', t.spend ? 'окупаемость рекламы' : 'нет расхода', romi === null ? '' : romi >= 0 ? 'up' : 'down');
+  d = delta(cac, pcac, true); html += kpi('money', cac ? money(cac) : '—', 'CAC · цена покупателя', cac ? d[1] : '', cac ? (d[0] === 'up' ? 'down' : d[0] === 'down' ? 'up' : '') : '');
+  html += kpi('money', t.paid ? money(t.revenue / t.paid) : '—', 'Средний чек', t.paid ? fmt(t.paid) + ' оплат' : '');
+  $('#kMoney').innerHTML = html;
+  html = '';
+  d = delta(t.visits, p.visits); html += kpi('', fmt(t.visits), 'Визиты', d[1], d[0]);
+  d = delta(t.leads, p.leads); html += kpi('', fmt(t.leads), 'Регистрации · CR ' + pct(t.leads, t.visits), d[1], d[0]);
+  d = delta(cpl, pcpl, true); html += kpi('', cpl ? money(cpl) : '—', 'CPL · цена регистрации', cpl ? d[1] : 'нет расхода', cpl ? (d[0] === 'up' ? 'down' : d[0] === 'down' ? 'up' : '') : '');
+  d = delta(t.attended, p.attended); html += kpi('', fmt(t.attended), 'Пришли на эфир · ' + pct(t.attended, t.leads) + ' от рег.', d[1], d[0]);
+  d = delta(t.attended30, p.attended30); html += kpi('', fmt(t.attended30), '30+ минут · ' + pct(t.attended30, t.attended) + ' от пришедших', d[1], d[0]);
+  d = delta(t.paid, p.paid); html += kpi('', fmt(t.paid), 'Оплаты · ' + pct(t.paid, t.attended) + ' от пришедших', d[1], d[0]);
+  $('#kFunnel').innerHTML = html;
+  const steps = [['Визиты', t.visits, null], ['Открыли форму', t.form_open, null], ['Регистрации', t.leads, 'lead'], ['Пришли', t.attended, 'attend'], ['30+ мин', t.attended30, 'stay'], ['Оплатили', t.paid, 'buy']];
+  $('#funnel').innerHTML = steps.map((s, i) => {
+    if (!i) return `<div class="step"><b>${fmt(s[1])}</b><span>${s[0]}</span><i>&nbsp;</i></div>`;
+    const prev = s[2] === 'lead' ? t.visits : steps[i - 1][1];
+    const cr = prev ? s[1] / prev : null, b = s[2] && BENCH[s[2]];
+    const low = b && cr !== null && prev >= 20 && cr < b[0];
+    return `<div class="step"><b>${fmt(s[1])}</b><span>${s[0]}</span><i class="${low ? 'low' : ''}">${cr === null ? '—' : pct(s[1], prev)}</i>${b ? '<em>ориентир ' + b[1] + '</em>' : ''}</div>`;
+  }).join('');
+  const days = group(list, 'date');
+  chart(days); chart2(days);
+  const keyLabel = { source: 'Источник', medium: 'Канал', campaign: 'Кампания', funnel: 'Воронка' }[cut];
+  const cuts = group(list, cut).sort((a, b) => b.t.leads - a.t.leads || b.t.visits - a.t.visits);
+  cutTable(cuts, keyLabel);
+  dayTable(days);
+  const m = (DATA && DATA.meta) || {};
+  $('#quality').innerHTML = `<span>Зарегистрировано всего: <b>${fmt(m.members || 0)}</b></span><span>Зрителей Бизона без регистрации в GetCourse: <b>${fmt(m.unknown_viewers || 0)}</b>${m.unknown_viewers ? ' (считаются как «реклама / не указан»)' : ''}</span><span>Тестовых адресов исключено: <b>${m.excluded || 0}</b></span><span>Строк данных: <b>${fmt(rows.length)}</b></span>`;
+}
+const cell = (k, v) => (/revenue|spend|cpl|cac|profit/.test(k)) ? money(v) : fmt(v);
+function cutTable(groups, head) {
   const tot = sum(groups.map(g => g.t));
-  $(sel).innerHTML = '<tr><th>' + head + '</th>' + cols.map(c => '<th>' + c[1] + '</th>').join('') + (compact ? '<th>CR рег→опл</th>' : '') + '</tr>'
-    + groups.map(g => '<tr><td>' + label(g) + '</td>' + cols.map(c => '<td>' + cell(c[0], g.t[c[0]]) + '</td>').join('') + (compact ? '<td>' + pct(g.t.paid, g.t.leads) + '</td>' : '') + '</tr>').join('')
-    + '<tr class="tot"><td>Итого</td>' + cols.map(c => '<td>' + cell(c[0], tot[c[0]]) + '</td>').join('') + (compact ? '<td>' + pct(tot.paid, tot.leads) + '</td>' : '') + '</tr>';
+  const row = (name, t, cls) => {
+    const cpl = t.leads && t.spend ? t.spend / t.leads : 0, cac = t.c_paid && t.spend ? t.spend / t.c_paid : 0;
+    const romi = t.spend ? Math.round((t.c_revenue - t.spend) / t.spend * 100) + '%' : '—';
+    return `<tr class="${cls || ''}"><td>${name}</td><td>${fmt(t.visits)}</td><td>${fmt(t.leads)}</td><td class="pc">${pct(t.leads, t.visits)}</td><td>${fmt(t.c_attended)}</td><td class="pc">${pct(t.c_attended, t.leads)}</td><td>${fmt(t.c_paid)}</td><td class="pc">${pct(t.c_paid, t.leads)}</td><td>${money(t.c_revenue)}</td><td>${money(t.spend)}</td><td>${cpl ? money(cpl) : '—'}</td><td>${cac ? money(cac) : '—'}</td><td>${romi}</td></tr>`;
+  };
+  $('#tCut').innerHTML = `<tr><th>${head}</th><th>Визиты</th><th>Рег.</th><th>CR</th><th>Пришли</th><th>%</th><th>Оплат</th><th>CR рег→опл</th><th>Выручка</th><th>Расход</th><th>CPL</th><th>CAC</th><th>ROMI</th></tr>`
+    + groups.map(g => row(g.key, g.t)).join('') + row('Итого', tot, 'tot');
+}
+function dayTable(days) {
+  const tot = sum(days.map(d => d.t));
+  const row = (name, t, cls) => `<tr class="${cls || ''}"><td>${name}</td><td>${fmt(t.visits)}</td><td>${fmt(t.form_open)}</td><td>${fmt(t.leads)}</td><td class="pc">${pct(t.leads, t.visits)}</td><td>${fmt(t.attended)}</td><td>${fmt(t.attended30)}</td><td>${fmt(t.orders)}</td><td>${fmt(t.paid)}</td><td>${money(t.revenue)}</td><td>${money(t.spend)}</td><td class="pc">${fmt(t.c_attended)} / ${fmt(t.c_paid)}</td></tr>`;
+  $('#tDay').innerHTML = '<tr><th>Дата</th><th>Визиты</th><th>Форма</th><th>Рег.</th><th>CR</th><th>Пришли</th><th>30+ мин</th><th>Заказы</th><th>Оплаты</th><th>Выручка</th><th>Расход</th><th>Когорта: пришли / купили</th></tr>'
+    + days.map(d => row(d.key.split('-').reverse().join('.'), d.t)).join('') + row('Итого', tot, 'tot');
+}
+function axis(W, H, pl, pb, max) {
+  const y = v => H - pb - (H - pb - 14) * v / max;
+  let s = '';
+  [0, .5, 1].forEach(g => { s += `<line x1="${pl}" x2="${W - 6}" y1="${y(max * g)}" y2="${y(max * g)}" stroke="#EEEBE3"/><text x="${pl - 6}" y="${y(max * g) + 4}" font-size="10" fill="#6B6658" text-anchor="end">${fmt(max * g)}</text>`; });
+  return [s, y];
 }
 function chart(days) {
-  const W = 560, H = 220, pl = 36, pb = 28, n = days.length;
+  const W = 560, H = 220, pl = 40, pb = 28, n = days.length;
   if (!n) { $('#chart').innerHTML = '<div class="sub">Нет данных за период</div>'; return; }
   const max = Math.max(1, ...days.map(d => d.t.leads));
-  const bw = (W - pl - 10) / n, x = i => pl + i * bw, y = v => H - pb - (H - pb - 14) * v / max;
-  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
-  [0, .5, 1].forEach(g => { s += `<line x1="${pl}" x2="${W - 6}" y1="${y(max * g)}" y2="${y(max * g)}" stroke="#EEEBE3"/><text x="${pl - 6}" y="${y(max * g) + 4}" font-size="10" fill="#6B6658" text-anchor="end">${fmt(max * g)}</text>`; });
+  const [grid, y] = axis(W, H, pl, pb, max), bw = (W - pl - 10) / n, x = i => pl + i * bw;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">` + grid;
   days.forEach((d, i) => {
-    s += `<rect x="${x(i) + bw * .15}" y="${y(d.t.leads)}" width="${bw * .7}" height="${H - pb - y(d.t.leads)}" rx="3" fill="#2F7D52"/>`;
-    s += `<rect x="${x(i) + bw * .15}" y="${y(d.t.attended)}" width="${bw * .7}" height="${H - pb - y(d.t.attended)}" rx="3" fill="#A9CBB8"/>`;
-    if (d.t.paid) s += `<circle cx="${x(i) + bw / 2}" cy="${y(d.t.paid)}" r="4" fill="#14130F"/>`;
+    s += `<rect x="${x(i) + bw * .15}" y="${y(d.t.leads)}" width="${bw * .7}" height="${H - pb - y(d.t.leads)}" rx="3" fill="#2F7D52"><title>${d.key}: регистрации ${d.t.leads}</title></rect>`;
+    s += `<rect x="${x(i) + bw * .15}" y="${y(d.t.attended)}" width="${bw * .7}" height="${H - pb - y(d.t.attended)}" rx="3" fill="#A9CBB8"><title>${d.key}: пришли ${d.t.attended}</title></rect>`;
+    if (n <= 16 && d.t.leads) s += `<text x="${x(i) + bw / 2}" y="${y(d.t.leads) - 4}" font-size="10" fill="#14130F" text-anchor="middle" font-weight="700">${d.t.leads}</text>`;
+    if (d.t.paid) s += `<circle cx="${x(i) + bw / 2}" cy="${y(d.t.paid)}" r="4" fill="#14130F"><title>${d.key}: оплаты ${d.t.paid}</title></circle>`;
     if (n <= 16 || i % Math.ceil(n / 16) === 0) s += `<text x="${x(i) + bw / 2}" y="${H - 8}" font-size="10" fill="#6B6658" text-anchor="middle">${d.key.slice(8, 10)}.${d.key.slice(5, 7)}</text>`;
   });
   $('#chart').innerHTML = s + '</svg>';
+}
+function chart2(days) {
+  const W = 560, H = 220, pl = 54, pb = 28, n = days.length;
+  const total = days.reduce((a, d) => a + d.t.revenue + d.t.spend, 0);
+  if (!n || !total) { $('#chart2').innerHTML = '<div class="sub">Пока нет ни выручки, ни расхода за период</div>'; return; }
+  const max = Math.max(1, ...days.map(d => Math.max(d.t.revenue, d.t.spend)));
+  const [grid, y] = axis(W, H, pl, pb, max), bw = (W - pl - 10) / n, x = i => pl + i * bw;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">` + grid;
+  days.forEach((d, i) => {
+    s += `<rect x="${x(i) + bw * .12}" y="${y(d.t.revenue)}" width="${bw * .36}" height="${H - pb - y(d.t.revenue)}" rx="3" fill="#2F7D52"><title>${d.key}: выручка ${money(d.t.revenue)}</title></rect>`;
+    s += `<rect x="${x(i) + bw * .52}" y="${y(d.t.spend)}" width="${bw * .36}" height="${H - pb - y(d.t.spend)}" rx="3" fill="#D89A87"><title>${d.key}: расход ${money(d.t.spend)}</title></rect>`;
+    if (n <= 16 || i % Math.ceil(n / 16) === 0) s += `<text x="${x(i) + bw / 2}" y="${H - 8}" font-size="10" fill="#6B6658" text-anchor="middle">${d.key.slice(8, 10)}.${d.key.slice(5, 7)}</text>`;
+  });
+  $('#chart2').innerHTML = s + '</svg>';
+}
+function exportCsv() {
+  const list = filtered(); if (!list.length) return;
+  const cols = ['date', 'funnel', 'source', 'medium', 'campaign', ...M];
+  const csv = '﻿' + cols.join(';') + '\n' + list.map(r => cols.map(c => String(r[c] ?? '').replace('.', ',')).join(';')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'voronka-obligacii.csv'; a.click();
 }
 
 /* ---- зашифрованные данные: пароль → PBKDF2-SHA256 (200 000) → AES-256-GCM; формат base64(salt16 + iv12 + ct) ---- */

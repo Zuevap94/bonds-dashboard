@@ -168,8 +168,9 @@ def gc_members(env):
 
 
 def gc_orders(env, members):
-    """{(date, funnel, source, medium, campaign): {orders, paid, revenue}}"""
+    """{(date, funnel, source, medium, campaign): {orders, paid, revenue}} и по людям: email → {paid, revenue}"""
     out = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
+    per_email = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
     rows = gc_export(env, 'deals', 'заказы', {'created_at[from]': START.isoformat()})
     n = 0
     for r in rows:
@@ -188,13 +189,16 @@ def gc_orders(env, members):
         paid_flag = (r.get('Оплачен') == 'Да') or status in ('Завершен', 'Частично оплачен')
         money = float((r.get('Оплачено') or '0').replace(',', '.') or 0)
         out[(created, funnel, src, med, camp)]['orders'] += 1
+        per_email[email]['orders'] += 1
         if paid_flag:
             pdate = (r.get('Дата оплаты') or created)[:10] or created
             out[(pdate, funnel, src, med, camp)]['paid'] += 1
             out[(pdate, funnel, src, med, camp)]['revenue'] += money
+            per_email[email]['paid'] += 1
+            per_email[email]['revenue'] += money
         n += 1
     log('GetCourse заказы курса:', n)
-    return out
+    return out, per_email
 
 
 # ---------------------------------------------------------------- Бизон
@@ -232,18 +236,22 @@ def bizon(env, members):
             if len(users) < limit: break
             skip += limit
     out = defaultdict(lambda: {'attended': 0, 'attended30': 0})
-    unknown = 0
+    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'minutes': 0.0})
+    unknown = set()
     for (email, wdate), mins in seen.items():
         if email in EXCLUDE_EMAILS: continue
         m = members.get(email)
         if not m:
-            unknown += 1
+            unknown.add(email)
             m = {'funnel': 'Реклама', 'source': NA, 'medium': NA, 'campaign': NA}
         r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'])]
         r['attended'] += 1
         if mins >= 30: r['attended30'] += 1
-    log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', unknown)
-    return out
+        pe = per_email[email]
+        pe['attended'] = 1; pe['minutes'] = max(pe['minutes'], mins)
+        if mins >= 30: pe['attended30'] = 1
+    log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown))
+    return out, per_email, len(unknown)
 
 
 # ---------------------------------------------------------------- расход
@@ -270,11 +278,18 @@ def spend():
 def build(env):
     parts = {'metrika': metrika(env)}
     members = gc_members(env)
-    parts.update({'orders': gc_orders(env, members), 'bizon': bizon(env, members), 'spend': spend()})
-    rows = defaultdict(lambda: {'visits': 0, 'form_open': 0, 'lead_goal': 0, 'leads': 0, 'attended': 0, 'attended30': 0, 'orders': 0, 'paid': 0, 'revenue': 0.0, 'spend': 0.0})
+    orders, paid_by_email = gc_orders(env, members)
+    attendance, att_by_email, unknown_viewers = bizon(env, members)
+    parts.update({'orders': orders, 'bizon': attendance, 'spend': spend()})
+    rows = defaultdict(lambda: {'visits': 0, 'form_open': 0, 'lead_goal': 0, 'leads': 0, 'attended': 0, 'attended30': 0, 'orders': 0, 'paid': 0, 'revenue': 0.0, 'spend': 0.0,
+                                'c_attended': 0, 'c_attended30': 0, 'c_paid': 0, 'c_revenue': 0.0})
     for k, v in parts['metrika'].items(): rows[k].update({x: rows[k][x] + v[x] for x in v})
-    for m in members.values():
-        rows[(m['date'], m['funnel'], m['source'], m['medium'], m['campaign'])]['leads'] += 1
+    for email, m in members.items():  # когорта: что стало с людьми, зарегистрировавшимися в этот день
+        r = rows[(m['date'], m['funnel'], m['source'], m['medium'], m['campaign'])]
+        r['leads'] += 1
+        a, pm = att_by_email.get(email), paid_by_email.get(email)
+        if a: r['c_attended'] += a['attended']; r['c_attended30'] += a['attended30']
+        if pm and pm['paid']: r['c_paid'] += 1; r['c_revenue'] += pm['revenue']
     for k, v in parts['orders'].items():
         for x in v: rows[k][x] += v[x]
     for k, v in parts['bizon'].items():
@@ -285,7 +300,9 @@ def build(env):
     for (d, funnel, src, med, camp), v in sorted(rows.items()):
         if d < START.isoformat() or d > today: continue
         table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
-    return table, members
+    meta = {'members': len(members), 'unknown_viewers': unknown_viewers,
+            'next_run': 'ежедневно в 09:30 МСК', 'excluded': len(EXCLUDE_EMAILS)}
+    return table, members, meta
 
 
 def encrypt(payload_json, password):
@@ -299,8 +316,8 @@ def encrypt(payload_json, password):
     return base64.b64encode(salt + iv + ct).decode('ascii')
 
 
-def render(table, env):
-    payload = {'generated': dt.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'), 'start': START.isoformat(), 'rows': table}
+def render(table, env, meta=None):
+    payload = {'generated': dt.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'), 'start': START.isoformat(), 'rows': table, 'meta': meta or {}}
     pj = json.dumps(payload, ensure_ascii=False)
     tpl = (ROOT / 'dashboard_template.html').read_text(encoding='utf-8')
     (OUT / 'dashboard.html').write_text(tpl.replace('/*__BOOT__*/', 'init(' + pj + ');'), encoding='utf-8')
@@ -317,12 +334,12 @@ def main():
     t0 = time.time()
     log('Старт', dt.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'))
     env = load_env()
-    table, members = build(env)
+    table, members, meta = build(env)
     (DATA / 'funnel_daily.json').write_text(json.dumps(table, ensure_ascii=False, indent=1), encoding='utf-8')
     with open(DATA / 'funnel_daily.csv', 'w', newline='', encoding='utf-8-sig') as f:
         w = csv.DictWriter(f, fieldnames=list(table[0].keys()) if table else ['date'], delimiter=';')
         w.writeheader(); w.writerows(table)  # data/ не попадает в репозиторий (.gitignore)
-    render(table, env)
+    render(table, env, meta)
     tot = {k: sum(r[k] for r in table) for k in ('visits', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue', 'spend')}
     log('Итого с', START.isoformat(), tot)
     log('Готово за %.0f c → %s' % (time.time() - t0, OUT / 'dashboard.html'))
