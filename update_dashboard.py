@@ -160,7 +160,8 @@ def gc_members(env):
             if src in EXCLUDE_SOURCES: continue
             rec = {'funnel': funnel, 'date': added, 'source': src,
                    'medium': norm(r.get('gc_system_user_utm_medium') or r.get('utm_medium')),
-                   'campaign': norm(r.get('gc_system_user_utm_campaign') or r.get('utm_campaign'))}
+                   'campaign': norm(r.get('gc_system_user_utm_campaign') or r.get('utm_campaign')),
+                   'messenger': norm(r.get('Мессенджер') or r.get('messenger'))}
             if email not in members or rec['date'] < members[email]['date']:
                 members[email] = rec
         log('GetCourse группа', funnel, 'участников всего:', len(rows))
@@ -181,19 +182,20 @@ def gc_orders(env, members):
         if status in ('Ложный', 'Отменен'): continue
         m = members.get(email)
         if m:
-            funnel, src, med, camp = m['funnel'], m['source'], m['medium'], m['campaign']
+            funnel, src, med, camp, msg = m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA)
         else:
+            msg = NA
             funnel = 'Органика' if 'organic' in (r.get('user_utm_campaign') or '') else 'Реклама'
             src, med, camp = norm(r.get('user_utm_source')), norm(r.get('user_utm_medium')), norm(r.get('user_utm_campaign'))
         created = (r.get('Дата создания') or '')[:10]
         paid_flag = (r.get('Оплачен') == 'Да') or status in ('Завершен', 'Частично оплачен')
         money = float((r.get('Оплачено') or '0').replace(',', '.') or 0)
-        out[(created, funnel, src, med, camp)]['orders'] += 1
+        out[(created, funnel, src, med, camp, msg)]['orders'] += 1
         per_email[email]['orders'] += 1
         if paid_flag:
             pdate = (r.get('Дата оплаты') or created)[:10] or created
-            out[(pdate, funnel, src, med, camp)]['paid'] += 1
-            out[(pdate, funnel, src, med, camp)]['revenue'] += money
+            out[(pdate, funnel, src, med, camp, msg)]['paid'] += 1
+            out[(pdate, funnel, src, med, camp, msg)]['revenue'] += money
             per_email[email]['paid'] += 1
             per_email[email]['revenue'] += money
         n += 1
@@ -243,8 +245,8 @@ def bizon(env, members):
         m = members.get(email)
         if not m:
             unknown.add(email)
-            m = {'funnel': 'Реклама', 'source': NA, 'medium': NA, 'campaign': NA}
-        r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'])]
+            m = {'funnel': 'Реклама', 'source': NA, 'medium': NA, 'campaign': NA, 'messenger': NA}
+        r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['attended'] += 1
         if mins >= 30: r['attended30'] += 1
         pe = per_email[email]
@@ -283,9 +285,9 @@ def build(env):
     parts.update({'orders': orders, 'bizon': attendance, 'spend': spend()})
     rows = defaultdict(lambda: {'visits': 0, 'form_open': 0, 'lead_goal': 0, 'leads': 0, 'attended': 0, 'attended30': 0, 'orders': 0, 'paid': 0, 'revenue': 0.0, 'spend': 0.0,
                                 'c_attended': 0, 'c_attended30': 0, 'c_paid': 0, 'c_revenue': 0.0})
-    for k, v in parts['metrika'].items(): rows[k].update({x: rows[k][x] + v[x] for x in v})
+    for k, v in parts['metrika'].items(): rows[k + (NA,)].update({x: rows[k + (NA,)][x] + v[x] for x in v})  # визиты без мессенджера
     for email, m in members.items():  # когорта: что стало с людьми, зарегистрировавшимися в этот день
-        r = rows[(m['date'], m['funnel'], m['source'], m['medium'], m['campaign'])]
+        r = rows[(m['date'], m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['leads'] += 1
         a, pm = att_by_email.get(email), paid_by_email.get(email)
         if a: r['c_attended'] += a['attended']; r['c_attended30'] += a['attended30']
@@ -294,12 +296,12 @@ def build(env):
         for x in v: rows[k][x] += v[x]
     for k, v in parts['bizon'].items():
         for x in v: rows[k][x] += v[x]
-    for k, v in parts['spend'].items(): rows[k]['spend'] += v
+    for k, v in parts['spend'].items(): rows[k + (NA,)]['spend'] += v
     today = dt.datetime.now(MSK).date().isoformat()
     table = []
-    for (d, funnel, src, med, camp), v in sorted(rows.items()):
+    for (d, funnel, src, med, camp, msg), v in sorted(rows.items()):
         if d < START.isoformat() or d > today: continue
-        table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
+        table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, messenger=msg, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
     meta = {'members': len(members), 'unknown_viewers': unknown_viewers,
             'next_run': 'ежедневно в 09:30 МСК', 'excluded': len(EXCLUDE_EMAILS)}
     return table, members, meta
