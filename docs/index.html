@@ -89,6 +89,7 @@ const LAYOUT = `
     <select id="fFunnel"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
     <select id="fSource"><option value="">Все источники</option></select>
     <select id="fMedium"><option value="">Все каналы</option></select>
+    <select id="fMsg"><option value="">Все мессенджеры</option></select>
     <span class="sep"></span>
     <button data-p="7">7 дней</button><button data-p="14">14 дней</button><button data-p="30" class="on">30 дней</button><button data-p="0">Всё время</button>
     <span class="sep"></span>
@@ -105,7 +106,7 @@ const LAYOUT = `
   <div class="card"><h2>По дням: регистрации и эфир</h2><div id="chart"></div><div class="legend"><span><i style="background:#2F7D52"></i>Регистрации</span><span><i style="background:#A9CBB8"></i>Пришли на эфир</span><span><i style="background:#14130F"></i>Оплаты</span></div></div>
   <div class="card"><h2>По дням: деньги</h2><div id="chart2"></div><div class="legend"><span><i style="background:#2F7D52"></i>Выручка</span><span><i style="background:#D89A87"></i>Расход</span></div></div>
 </div>
-<div class="card"><h2><span>Разрез</span><span class="tabs" id="cuts"><button data-c="source" class="on">Источник</button><button data-c="medium">Канал</button><button data-c="campaign">Кампания</button><button data-c="funnel">Воронка</button></span></h2><div class="tblwrap"><table id="tCut"></table></div><div class="sub" style="margin-top:8px">Пришли и оплатили здесь считаются по когорте: что стало с людьми, которые зарегистрировались из этого источника за период. CPL = расход / регистрации, CAC = расход / оплаты, ROMI = (выручка − расход) / расход.</div></div>
+<div class="card"><h2><span>Разрез</span><span class="tabs" id="cuts"><button data-c="source" class="on">Источник</button><button data-c="medium">Канал</button><button data-c="campaign">Кампания</button><button data-c="messenger">Мессенджер</button><button data-c="funnel">Воронка</button></span></h2><div class="tblwrap"><table id="tCut"></table></div><div class="sub" style="margin-top:8px">Пришли и оплатили здесь считаются по когорте: что стало с людьми, которые зарегистрировались из этого источника за период. CPL = расход / регистрации, CAC = расход / оплаты, ROMI = (выручка − расход) / расход.</div></div>
 <div class="card"><h2>По дням</h2><div class="tblwrap"><table id="tDay"></table></div><div class="sub" style="margin-top:8px">«Пришли», «30+ мин» и «Оплаты» — по дате события (эфира, оплаты). «Когорта» — сколько из зарегистрировавшихся в этот день в итоге пришли и купили.</div></div>
 <div class="quality" id="quality"></div>
 <div class="card defs"><h2>Как считается</h2>
@@ -118,6 +119,7 @@ const LAYOUT = `
 <dt>Сравнение</dt><dd>Стрелки у показателей — изменение к предыдущему периоду той же длины.</dd>
 <dt>Ориентиры</dt><dd>Типичные значения для бесплатных вебинаров в инфобизнесе: регистрация 15–30% от визитов, доходимость 25–45%, досматривают 30+ минут 50–70%, покупают 3–8% от пришедших. Это не план, а подсказка, где искать проблему.</dd>
 <dt>Воронка и источник</dt><dd>Воронка — по группе GetCourse. Источник, канал и кампания — UTM пользователя (ставит Vakas при регистрации): для ботов в Telegram и MAX канал будет telegram / max.</dd>
+<dt>Мессенджер</dt><dd>Какую кнопку нажал человек на лендинге (Telegram или MAX): скрытое поле формы → Vakas → доп. поле «Мессенджер» в GetCourse. Визиты Метрики по мессенджеру не делятся, поэтому в этом разрезе их нет; доходимость и оплаты считаются по людям.</dd>
 </dl></div>`;
 
 function init(data) {
@@ -126,8 +128,8 @@ function init(data) {
   $('#sub').textContent = data ? 'Обновлено ' + data.generated + ' МСК · данные с ' + data.start.split('-').reverse().join('.') + ' · обновление ' + ((data.meta || {}).next_run || 'ежедневно') : 'Нет данных';
   if (!rows.length) { $('#warn').hidden = false; $('#warn').textContent = 'Данных пока нет: сборка ещё не прошла или за период пусто.'; }
   const fill = (sel, vals) => { const s = $(sel); [...new Set(vals)].sort().forEach(v => { const o = document.createElement('option'); o.textContent = v; s.appendChild(o); }); };
-  fill('#fSource', rows.map(r => r.source)); fill('#fMedium', rows.map(r => r.medium));
-  ['#fFunnel', '#fSource', '#fMedium'].forEach(s => $(s).addEventListener('change', draw));
+  fill('#fSource', rows.map(r => r.source)); fill('#fMedium', rows.map(r => r.medium)); fill('#fMsg', rows.map(r => r.messenger || '(не указан)'));
+  ['#fFunnel', '#fSource', '#fMedium', '#fMsg'].forEach(s => $(s).addEventListener('change', draw));
   root.querySelectorAll('.filters button[data-p]').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('.filters button[data-p]').forEach(x => x.classList.remove('on')); b.classList.add('on'); period = +b.dataset.p; draw(); }));
   root.querySelectorAll('#cuts button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#cuts button').forEach(x => x.classList.remove('on')); b.classList.add('on'); cut = b.dataset.c; draw(); }));
   $('#csv').addEventListener('click', exportCsv);
@@ -140,8 +142,8 @@ function range() {
   return [from, d.toISOString().slice(0, 10)];
 }
 function base() {
-  const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value;
-  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m));
+  const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value, g = $('#fMsg').value;
+  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m) && (!g || (r.messenger || '(не указан)') === g));
 }
 function filtered() { const [from] = range(); return base().filter(r => !from || r.date >= from); }
 function previous() { const [from, pfrom] = range(); if (!from) return []; return base().filter(r => r.date >= pfrom && r.date < from); }
@@ -189,8 +191,8 @@ function draw() {
   }).join('');
   const days = group(list, 'date');
   chart(days); chart2(days);
-  const keyLabel = { source: 'Источник', medium: 'Канал', campaign: 'Кампания', funnel: 'Воронка' }[cut];
-  const cuts = group(list, cut).sort((a, b) => b.t.leads - a.t.leads || b.t.visits - a.t.visits);
+  const keyLabel = { source: 'Источник', medium: 'Канал', campaign: 'Кампания', messenger: 'Мессенджер', funnel: 'Воронка' }[cut];
+  const cuts = group(list.map(r => cut === 'messenger' ? Object.assign({}, r, { messenger: r.messenger || '(не указан)' }) : r), cut).filter(g => cut !== 'messenger' || g.t.leads || g.t.attended || g.t.orders || g.t.c_paid).sort((a, b) => b.t.leads - a.t.leads || b.t.visits - a.t.visits);
   cutTable(cuts, keyLabel);
   dayTable(days);
   const m = (DATA && DATA.meta) || {};
@@ -202,7 +204,8 @@ function cutTable(groups, head) {
   const row = (name, t, cls) => {
     const cpl = t.leads && t.spend ? t.spend / t.leads : 0, cac = t.c_paid && t.spend ? t.spend / t.c_paid : 0;
     const romi = t.spend ? Math.round((t.c_revenue - t.spend) / t.spend * 100) + '%' : '—';
-    return `<tr class="${cls || ''}"><td>${name}</td><td>${fmt(t.visits)}</td><td>${fmt(t.leads)}</td><td class="pc">${pct(t.leads, t.visits)}</td><td>${fmt(t.c_attended)}</td><td class="pc">${pct(t.c_attended, t.leads)}</td><td>${fmt(t.c_paid)}</td><td class="pc">${pct(t.c_paid, t.leads)}</td><td>${money(t.c_revenue)}</td><td>${money(t.spend)}</td><td>${cpl ? money(cpl) : '—'}</td><td>${cac ? money(cac) : '—'}</td><td>${romi}</td></tr>`;
+    const nov = cut === 'messenger' && cls !== 'tot';
+    return `<tr class="${cls || ''}"><td>${name}</td><td>${nov ? '—' : fmt(t.visits)}</td><td>${fmt(t.leads)}</td><td class="pc">${nov ? '—' : pct(t.leads, t.visits)}</td><td>${fmt(t.c_attended)}</td><td class="pc">${pct(t.c_attended, t.leads)}</td><td>${fmt(t.c_paid)}</td><td class="pc">${pct(t.c_paid, t.leads)}</td><td>${money(t.c_revenue)}</td><td>${money(t.spend)}</td><td>${cpl ? money(cpl) : '—'}</td><td>${cac ? money(cac) : '—'}</td><td>${romi}</td></tr>`;
   };
   $('#tCut').innerHTML = `<tr><th>${head}</th><th>Визиты</th><th>Рег.</th><th>CR</th><th>Пришли</th><th>%</th><th>Оплат</th><th>CR рег→опл</th><th>Выручка</th><th>Расход</th><th>CPL</th><th>CAC</th><th>ROMI</th></tr>`
     + groups.map(g => row(g.key, g.t)).join('') + row('Итого', tot, 'tot');
@@ -250,7 +253,7 @@ function chart2(days) {
 }
 function exportCsv() {
   const list = filtered(); if (!list.length) return;
-  const cols = ['date', 'funnel', 'source', 'medium', 'campaign', ...M];
+  const cols = ['date', 'funnel', 'source', 'medium', 'campaign', 'messenger', ...M];
   const csv = '﻿' + cols.join(';') + '\n' + list.map(r => cols.map(c => String(r[c] ?? '').replace('.', ',')).join(';')).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'voronka-obligacii.csv'; a.click();
 }
