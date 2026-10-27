@@ -162,7 +162,10 @@ def gc_members(env):
             rec = {'funnel': funnel, 'date': added, 'source': src,
                    'medium': norm(r.get('gc_system_user_utm_medium') or r.get('utm_medium')),
                    'campaign': norm(r.get('gc_system_user_utm_campaign') or r.get('utm_campaign')),
-                   'messenger': norm(r.get('Мессенджер') or r.get('messenger'))}
+                   'messenger': norm(r.get('Мессенджер') or r.get('messenger')),
+                   # для сопоставления зрителей Бизона без email (зашли по ссылке из бота)
+                   'phone': phone10(r.get('Телефон')), 'bhid': (r.get('bothelp_id') or '').strip(),
+                   'name': (r.get('Имя') or '').strip().lower()}
             if email not in members or rec['date'] < members[email]['date']:
                 members[email] = rec
         log('GetCourse группа', funnel, 'участников всего:', len(rows))
@@ -205,6 +208,31 @@ def gc_orders(env, members):
 
 
 # ---------------------------------------------------------------- Бизон
+def phone10(s):
+    d = re.sub(r'\D', '', str(s or ''))
+    return d[-10:] if len(d) >= 10 else ''
+
+
+def viewer_matcher(members):
+    """Зритель Бизона → email участника. По ссылке из бота Бизон не получает email (только bhid в url и
+    телефон, введённый руками), поэтому: email → bhid (доп. поле GetCourse bothelp_id) → телефон →
+    телефон с одной опечаткой при совпадении имени (только если такой кандидат один)."""
+    by_bhid = {m['bhid']: e for e, m in members.items() if m.get('bhid')}
+    by_phone = {m['phone']: e for e, m in members.items() if m.get('phone')}
+    def match(u):
+        email = (u.get('email') or '').strip().lower()
+        if email: return email
+        bhid = (urllib.parse.parse_qs(urllib.parse.urlparse(u.get('url') or '').query).get('bhid') or [''])[0].strip()
+        if bhid in by_bhid: return by_bhid[bhid]
+        ph, name = phone10(u.get('phone')), (u.get('username') or '').strip().lower()
+        if ph in by_phone: return by_phone[ph]
+        near = [e for p, e in by_phone.items() if ph and name and members[e]['name'] == name
+                and sum(a != b for a, b in zip(p, ph)) == 1]
+        if len(near) == 1: return near[0]
+        return 'bizon:' + (ph or u.get('chatUserId') or bhid or '?')  # не нашли: считаем как неизвестного зрителя
+    return match
+
+
 def bizon(env, members):
     """{(date, funnel, source, medium, campaign): {attended, attended30}} — человек считается раз в день."""
     h = {'X-Token': env['BIZON_TOKEN']}
@@ -217,6 +245,7 @@ def bizon(env, members):
         if len(lst) < 100: break
         skip += 100
     seen = {}  # (email, date) → minutes
+    match = viewer_matcher(members)
     for rep in reports:
         wid = rep['webinarId']
         m = re.search(r'\*(\d{4}-\d{2}-\d{2})T', wid)
@@ -231,8 +260,7 @@ def bizon(env, members):
                 except Exception: inner = {}
             users = (inner or {}).get('usersMeta') or {}
             for u in users.values():
-                email = (u.get('email') or '').strip().lower()
-                if not email: continue
+                email = match(u)
                 mins = sum(max(0, (iv.get('e', 0) - iv.get('s', 0))) for iv in (u.get('vi') or [])) / 60.0
                 k = (email, wdate)
                 seen[k] = max(seen.get(k, 0), mins)
