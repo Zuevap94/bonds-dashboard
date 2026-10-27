@@ -2,7 +2,9 @@ name: dashboard
 
 on:
   schedule:
-    - cron: '30 6 * * *'   # 09:30 МСК каждый день
+    # GitHub запускает cron с опозданием (бывало на 5–7 часов), поэтому сборок несколько в день:
+    # 06:17, 10:17, 14:17, 18:17, 22:17 МСК. Сразу — кнопкой «Обновить» на дашборде (workflow_dispatch).
+    - cron: '17 3,7,11,15,19 * * *'
   workflow_dispatch:
 
 permissions:
@@ -30,6 +32,7 @@ jobs:
           METRIKA_TOKEN: ${{ secrets.METRIKA_TOKEN }}
           DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
           EXCLUDE_EMAILS: ${{ secrets.EXCLUDE_EMAILS }}
+          DASHBOARD_TRIGGER_TOKEN: ${{ secrets.DASHBOARD_TRIGGER_TOKEN }}
         run: python update_dashboard.py
       - name: Опубликовать зашифрованные данные
         run: |

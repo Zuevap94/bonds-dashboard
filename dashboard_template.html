@@ -18,6 +18,9 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .zd .filters select,.zd .filters button{font:inherit;font-weight:600;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;color:var(--ink);cursor:pointer}
 .zd .filters button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.zd .filters button#refresh{background:var(--green);border-color:var(--green);color:#fff}
+.zd .filters button#refresh:disabled{opacity:.75;cursor:progress}
+.zd .rerr{color:var(--red)}
 .zd .filters .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
 .zd .sec{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:800;margin:14px 0 8px}
 .zd .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
@@ -94,6 +97,7 @@ const LAYOUT = `
     <button data-p="7">7 дней</button><button data-p="14">14 дней</button><button data-p="30" class="on">30 дней</button><button data-p="0">Всё время</button>
     <span class="sep"></span>
     <button id="csv" title="Скачать строки за выбранный период">CSV</button>
+    <button id="refresh" title="Собрать свежие данные прямо сейчас (2–4 минуты)">↻ Обновить</button>
   </div>
 </header>
 <div id="warn" class="warn" hidden></div>
@@ -133,6 +137,7 @@ function init(data) {
   root.querySelectorAll('.filters button[data-p]').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('.filters button[data-p]').forEach(x => x.classList.remove('on')); b.classList.add('on'); period = +b.dataset.p; draw(); }));
   root.querySelectorAll('#cuts button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#cuts button').forEach(x => x.classList.remove('on')); b.classList.add('on'); cut = b.dataset.c; draw(); }));
   $('#csv').addEventListener('click', exportCsv);
+  $('#refresh').addEventListener('click', refresh);
   draw();
 }
 function range() {
@@ -256,6 +261,50 @@ function exportCsv() {
   const cols = ['date', 'funnel', 'source', 'medium', 'campaign', 'messenger', ...M];
   const csv = '﻿' + cols.join(';') + '\n' + list.map(r => cols.map(c => String(r[c] ?? '').replace('.', ',')).join(';')).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'voronka-obligacii.csv'; a.click();
+}
+
+/* ---- кнопка «Обновить»: запускает workflow в GitHub Actions, ждёт его и подгружает свежий data.enc.
+   Токен (fine-grained, только Actions этого репозитория) лежит внутри зашифрованных данных. Без токена — открывает страницу workflow. ---- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function refresh() {
+  const btn = $('#refresh'), m = (DATA && DATA.meta) || {}, repo = m.repo || 'Zuevap94/bonds-dashboard';
+  const pw = sessionStorage.getItem('zd_pw');
+  if (!m.trigger_token || !pw) { window.open('https://github.com/' + repo + '/actions/workflows/dashboard.yml', '_blank'); return; }
+  const gh = (path, opt = {}) => fetch('https://api.github.com/repos/' + repo + path, { ...opt, cache: 'no-store',
+    headers: { Authorization: 'Bearer ' + m.trigger_token, Accept: 'application/vnd.github+json', ...(opt.headers || {}) } });
+  const step = t => { btn.textContent = t; };
+  btn.disabled = true;
+  try {
+    const since = new Date(Date.now() - 60000).toISOString().slice(0, 19) + 'Z';
+    step('Запускаю…');
+    const r = await gh('/actions/workflows/dashboard.yml/dispatches', { method: 'POST', body: JSON.stringify({ ref: 'main' }) });
+    if (r.status !== 204) throw new Error('GitHub не принял запуск (' + r.status + ')');
+    let run = null;
+    for (let i = 0; i < 150 && !(run && run.status === 'completed'); i++) {   // до ~12 минут
+      await sleep(5000);
+      const list = await (await gh('/actions/workflows/dashboard.yml/runs?event=workflow_dispatch&per_page=1&created=' + encodeURIComponent('>=' + since))).json();
+      run = (list.workflow_runs || [])[0] || null;
+      step(run ? 'Собираю… ' + Math.max(0, Math.round((Date.now() - Date.parse(run.created_at)) / 1000)) + ' c' : 'Жду запуска…');
+    }
+    if (!run || run.status !== 'completed') throw new Error('сборка идёт дольше обычного, загляните позже');
+    if (run.conclusion !== 'success') throw new Error('сборка завершилась с ошибкой');
+    step('Загружаю…');
+    let data = null;
+    for (let i = 0; i < 6; i++) {   // свежий файл прямо из репозитория, мимо кэша CDN
+      const f = await gh('/contents/docs/data.enc?ref=main', { headers: { Accept: 'application/vnd.github.raw+json' } });
+      if (f.ok) { data = await decrypt(await f.text(), pw); if (data.generated !== DATA.generated) break; }
+      await sleep(3000);
+    }
+    if (!data) throw new Error('не удалось загрузить данные');
+    const keep = { period, cut, sel: ['#fFunnel', '#fSource', '#fMedium', '#fMsg'].map(q => $(q).value) };
+    init(data);
+    ['#fFunnel', '#fSource', '#fMedium', '#fMsg'].forEach((q, i) => { $(q).value = keep.sel[i]; if ($(q).value !== keep.sel[i]) $(q).value = ''; });
+    root.querySelector('.filters button[data-p="' + keep.period + '"]').click();
+    root.querySelector('#cuts button[data-c="' + keep.cut + '"]').click();
+  } catch (e) {
+    btn.disabled = false; step('↻ Обновить');
+    $('#sub').insertAdjacentHTML('beforeend', ' · <span class="rerr">Не обновилось: ' + e.message + '</span>');
+  }
 }
 
 /* ---- зашифрованные данные: пароль → PBKDF2-SHA256 (200 000) → AES-256-GCM; формат base64(salt16 + iv12 + ct) ---- */

@@ -28,6 +28,7 @@ COURSE_MARK = 'Облигации: пошаговая сборка портфе�
 EXCLUDE_EMAILS = {e.strip().lower() for e in os.environ.get('EXCLUDE_EMAILS', '').split(',') if e.strip()}  # тестовые адреса, задаются в окружении
 EXCLUDE_SOURCES = {'test'}
 NA = '(не указан)'
+REPO = 'Zuevap94/bonds-dashboard'   # GitHub-репозиторий сборки (кнопка «Обновить» запускает его workflow)
 
 MSK = dt.timezone(dt.timedelta(hours=3))
 log_lines = []
@@ -303,7 +304,7 @@ def build(env):
         if d < START.isoformat() or d > today: continue
         table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, messenger=msg, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
     meta = {'members': len(members), 'unknown_viewers': unknown_viewers,
-            'next_run': 'ежедневно в 09:30 МСК', 'excluded': len(EXCLUDE_EMAILS)}
+            'next_run': 'автоматически 5 раз в день или кнопкой «Обновить»', 'excluded': len(EXCLUDE_EMAILS)}
     return table, members, meta
 
 
@@ -326,7 +327,9 @@ def render(table, env, meta=None):
     pw = env.get('DASHBOARD_PASSWORD')
     if pw:
         docs = ROOT / 'docs'; docs.mkdir(exist_ok=True)
-        (docs / 'data.enc').write_text(encrypt(pj, pw), encoding='ascii')
+        # токен кнопки «Обновить» (fine-grained, только Actions этого репозитория) — лишь в зашифрованных данных
+        enc = dict(payload, meta={**payload['meta'], 'repo': REPO, 'trigger_token': env.get('DASHBOARD_TRIGGER_TOKEN', '')})
+        (docs / 'data.enc').write_text(encrypt(json.dumps(enc, ensure_ascii=False), pw), encoding='ascii')
         boot = "const DATA_URL = (window.DASHBOARD_DATA_URL || 'data.enc'); bootEncrypted(DATA_URL);"
         (docs / 'index.html').write_text(tpl.replace('/*__BOOT__*/', boot), encoding='utf-8')
         log('Зашифрованные данные: docs/data.enc')
