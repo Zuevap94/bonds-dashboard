@@ -185,12 +185,8 @@ def gc_orders(env, members):
         status = r.get('Статус') or ''
         if status in ('Ложный', 'Отменен'): continue
         m = members.get(email)
-        if m:
-            funnel, src, med, camp, msg = m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA)
-        else:
-            msg = NA
-            funnel = 'Органика' if 'organic' in (r.get('user_utm_campaign') or '') else 'Реклама'
-            src, med, camp = norm(r.get('user_utm_source')), norm(r.get('user_utm_medium')), norm(r.get('user_utm_campaign'))
+        if not m: continue  # купил не через автоворонку (живой эфир, другие источники) — в дашборд не берём
+        funnel, src, med, camp, msg = m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA)
         created = (r.get('Дата создания') or '')[:10]
         paid_flag = (r.get('Оплачен') == 'Да') or status in ('Завершен', 'Частично оплачен')
         money = float((r.get('Оплачено') or '0').replace(',', '.') or 0)
