@@ -9,7 +9,9 @@
   visits, form_open, lead_goal — Яндекс Метрика (счётчики рекламы и органики)
   leads                        — GetCourse: добавлен в группу вебинара (реклама 5009549 / органика 5011602)
   attended, attended30         — Бизон: зрители эфиров bonds / bonds-10 / bonds-15 / bonds-17 (≥30 мин)
-  offer, att_min               — Бизон: досмотрели до оффера (кнопки тарифов на 1:21), сумма минут просмотра
+  offer, att_min               — Бизон: были в комнате в 1:21 или позже (видели кнопки тарифов), сумма минут просмотра
+  clicked                      — Бизон: нажали кнопку тарифа на эфире
+  ret                          — Бизон: удержание, сколько зрителей было в комнате на каждой минуте эфира (список из RET_MIN чисел)
   a10…a19, q10…q19, m10…m19    — Бизон по слотам эфира 10/15/17/19: пришли, дошли до оффера, минуты
   orders, paid, revenue        — GetCourse: заказы трёх тарифов курса
   spend                        — spend.csv (вручную)
@@ -28,9 +30,10 @@ COUNTERS = {'METRIKA_COUNTER_ADS': 'Реклама', 'METRIKA_COUNTER_ORGANIC': 
 ROOMS = ('121345:bonds', '121345:bonds-10', '121345:bonds-15', '121345:bonds-17')
 SLOTS = {'121345:bonds': '19', '121345:bonds-10': '10', '121345:bonds-15': '15', '121345:bonds-17': '17'}  # комната → час эфира
 OFFER_MIN = 81                         # в сценарии bonds кнопки тарифов появляются на 1:21:23
+RET_MIN = 116                          # длительность эфира bonds, минут — длина кривой удержания
 SLOT_FIELDS = [p + h for p in ('a', 'q', 'm') for h in ('10', '15', '17', '19')]
-FIELDS = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'offer', 'att_min', 'orders', 'paid', 'revenue', 'spend',
-          'c_attended', 'c_attended30', 'c_offer', 'c_orders', 'c_paid', 'c_revenue'] + SLOT_FIELDS
+FIELDS = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'offer', 'clicked', 'att_min', 'orders', 'paid', 'revenue', 'spend',
+          'c_attended', 'c_attended30', 'c_offer', 'c_clicked', 'c_orders', 'c_paid', 'c_revenue'] + SLOT_FIELDS
 COURSE_MARK = 'Облигации: пошаговая сборка портфеля'
 EXCLUDE_EMAILS = {e.strip().lower() for e in os.environ.get('EXCLUDE_EMAILS', '').split(',') if e.strip()}  # тестовые адреса, задаются в окружении
 EXCLUDE_SOURCES = {'test'}
@@ -247,7 +250,7 @@ def bizon(env, members):
         reports += [r for r in lst if r.get('name') in ROOMS or r.get('name', '').split('*')[0] in ROOMS]
         if len(lst) < 100: break
         skip += 100
-    seen = {}  # (email, date) → (minutes, слот эфира)
+    seen = {}  # (email, date) → {'mins', 'slot', 'vi' — интервалы самого долгого захода, 'clicked'}
     match = viewer_matcher(members)
     for rep in reports:
         wid = rep['webinarId']
@@ -267,13 +270,17 @@ def bizon(env, members):
                 email = match(u)
                 mins = sum(max(0, (iv.get('e', 0) - iv.get('s', 0))) for iv in (u.get('vi') or [])) / 60.0
                 k = (email, wdate)
-                if k not in seen or mins > seen[k][0]: seen[k] = (mins, slot)
+                clicked = bool(u.get('buttons')) or bool(seen.get(k, {}).get('clicked'))
+                if k not in seen or mins > seen[k]['mins']: seen[k] = {'mins': mins, 'slot': slot, 'vi': u.get('vi') or []}
+                seen[k]['clicked'] = clicked
             if len(users) < limit: break
             skip += limit
-    out = defaultdict(lambda: dict({'attended': 0, 'attended30': 0, 'offer': 0, 'att_min': 0.0}, **{f: 0 for f in SLOT_FIELDS}))
-    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'offer': 0, 'minutes': 0.0})
+    out = defaultdict(lambda: dict({'attended': 0, 'attended30': 0, 'offer': 0, 'clicked': 0, 'att_min': 0.0, 'ret': [0] * RET_MIN}, **{f: 0 for f in SLOT_FIELDS}))
+    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'offer': 0, 'clicked': 0, 'minutes': 0.0})
     unknown = set()
-    for (email, wdate), (mins, slot) in seen.items():
+    for (email, wdate), v in seen.items():
+        mins, slot = v['mins'], v['slot']
+        saw_offer = any(iv.get('e', 0) > OFFER_MIN * 60 for iv in v['vi'])  # застал кнопки тарифов
         if email in EXCLUDE_EMAILS: continue
         m = members.get(email)
         if not m:
@@ -282,11 +289,15 @@ def bizon(env, members):
         r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['attended'] += 1; r['att_min'] += mins; r['a' + slot] += 1; r['m' + slot] += mins
         if mins >= 30: r['attended30'] += 1
-        if mins >= OFFER_MIN: r['offer'] += 1; r['q' + slot] += 1
+        if saw_offer: r['offer'] += 1; r['q' + slot] += 1
+        if v['clicked']: r['clicked'] += 1
+        for m in range(RET_MIN):  # был в комнате хотя бы часть этой минуты
+            if any(iv.get('s', 0) < (m + 1) * 60 and iv.get('e', 0) > m * 60 for iv in v['vi']): r['ret'][m] += 1
         pe = per_email[email]
         pe['attended'] = 1; pe['minutes'] = max(pe['minutes'], mins)
         if mins >= 30: pe['attended30'] = 1
-        if mins >= OFFER_MIN: pe['offer'] = 1
+        if saw_offer: pe['offer'] = 1
+        if v['clicked']: pe['clicked'] = 1
     log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown))
     return out, per_email, len(unknown)
 
@@ -324,13 +335,15 @@ def build(env):
         r = rows[(m['date'], m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['leads'] += 1
         a, pm = att_by_email.get(email), paid_by_email.get(email)
-        if a: r['c_attended'] += a['attended']; r['c_attended30'] += a['attended30']; r['c_offer'] += a['offer']
+        if a: r['c_attended'] += a['attended']; r['c_attended30'] += a['attended30']; r['c_offer'] += a['offer']; r['c_clicked'] += a['clicked']
         if pm and pm['orders']: r['c_orders'] += 1
         if pm and pm['paid']: r['c_paid'] += 1; r['c_revenue'] += pm['revenue']
     for k, v in parts['orders'].items():
         for x in v: rows[k][x] += v[x]
     for k, v in parts['bizon'].items():
-        for x in v: rows[k][x] += v[x]
+        for x in v:
+            if x == 'ret': rows[k]['ret'] = [a + b for a, b in zip(rows[k].get('ret') or [0] * RET_MIN, v[x])]
+            else: rows[k][x] += v[x]
     for k, v in parts['spend'].items(): rows[k + (NA,)]['spend'] += v
     today = dt.datetime.now(MSK).date().isoformat()
     table = []
@@ -377,7 +390,7 @@ def main():
     table, members, meta = build(env)
     (DATA / 'funnel_daily.json').write_text(json.dumps(table, ensure_ascii=False, indent=1), encoding='utf-8')
     with open(DATA / 'funnel_daily.csv', 'w', newline='', encoding='utf-8-sig') as f:
-        w = csv.DictWriter(f, fieldnames=list(table[0].keys()) if table else ['date'], delimiter=';')
+        w = csv.DictWriter(f, fieldnames=[k for k in table[0] if k != 'ret'] if table else ['date'], delimiter=';', extrasaction='ignore')
         w.writeheader(); w.writerows(table)  # data/ не попадает в репозиторий (.gitignore)
     render(table, env, meta)
     tot = {k: sum(r[k] for r in table) for k in ('visits', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue', 'spend')}

@@ -103,6 +103,16 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .hit{fill:transparent;cursor:default}
 .zd .hit:hover{fill:rgba(20,19,15,.04)}
 .zd .empty{color:var(--mute);font-size:13px;padding:24px 0;text-align:center}
+/* удержание эфира */
+.zd .retwrap{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:900px){.zd .retwrap{grid-template-columns:1fr}}
+.zd .st{padding:11px 0;border-bottom:1px solid #EEEBE3}
+.zd .st:first-child{padding-top:0}
+.zd .st:last-child{border-bottom:0}
+.zd .st .k{font-size:12px;color:var(--mute);font-weight:600}
+.zd .st b{display:block;font-size:20px;letter-spacing:-.01em;margin-top:2px}
+.zd .st p{margin:3px 0 0;font-size:12px;color:var(--text)}
+.zd .st.bad b{color:var(--red)}
 /* слоты и мессенджеры */
 .zd .rows{display:flex;flex-direction:column;gap:12px}
 .zd .rw{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center}
@@ -170,10 +180,10 @@ const plural = (n, a, b, c) => { const m = Math.abs(n) % 100, k = m % 10; return
 const ppl = n => fmt(n) + ' ' + plural(n, 'человек', 'человека', 'человек');
 
 /* все числовые поля строки данных (новые поля сборки появляются автоматически) */
-const BASE = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'offer', 'att_min', 'orders', 'paid', 'revenue', 'spend',
-  'c_attended', 'c_attended30', 'c_offer', 'c_orders', 'c_paid', 'c_revenue'];
+const BASE = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'offer', 'clicked', 'att_min', 'orders', 'paid', 'revenue', 'spend',
+  'c_attended', 'c_attended30', 'c_offer', 'c_clicked', 'c_orders', 'c_paid', 'c_revenue'];
 const SLOTS = ['10', '15', '17', '19'];
-const OFFER_AT = '1:21';
+const OFFER_AT = '1:21', OFFER_MIN = 81;
 const MIN_BASE = 20;   // меньше людей на шаге — процент считаем предварительным
 
 /* шаги воронки: до регистрации — по дате события, после — когорта зарегистрировавшихся за период */
@@ -183,11 +193,12 @@ const STEPS = [
   { k: 'leads', name: 'Регистрации', hint: 'попали в GetCourse', bench: 'lead' },
   { k: 'c_attended', name: 'Пришли на эфир', hint: 'зашли в комнату Бизона', bench: 'attend' },
   { k: 'c_attended30', name: 'Смотрели 30+ мин', hint: 'удержание эфира', bench: 'stay' },
-  { k: 'c_offer', name: 'Дошли до оффера', hint: 'досмотрели до ' + OFFER_AT, bench: 'offer' },
+  { k: 'c_offer', name: 'Дошли до оффера', hint: 'были на эфире в ' + OFFER_AT + ' или позже', bench: 'offer' },
+  { k: 'c_clicked', name: 'Нажали кнопку тарифа', hint: 'кнопка на эфире' },
   { k: 'c_orders', name: 'Оформили заказ', hint: 'любой тариф' },
   { k: 'c_paid', name: 'Оплатили', hint: 'полностью или частично', bench: 'buy' },
 ];
-const SHADES = ['#B9D8C5', '#A3CBB3', '#82B897', '#5FA37C', '#45916A', '#347F59', '#2A6E4C', '#1F5B3E'];
+const SHADES = ['#B9D8C5', '#A3CBB3', '#82B897', '#5FA37C', '#45916A', '#347F59', '#2C7350', '#246443', '#1C5538'];
 
 /* ориентиры для бесплатных вебинаров в онлайн-образовании: lo–hi — нормальный диапазон */
 const BENCH = {
@@ -204,14 +215,16 @@ const BENCH = {
   pay: { label: 'Оплата заказов', num: 'c_paid', den: 'c_orders', denL: 'от заказов', lo: .4, hi: .7, max: 1,
     advice: 'Оформили, но не оплатили: свяжитесь в течение часа, предложите рассрочку, напомните о дедлайне.' },
 };
-/* потери между шагами после регистрации: что это значит и что делать */
-const LOSS = [
-  ['leads', 'c_attended', 'не пришли на эфир', 'Это люди, которые уже хотели прийти. Усильте напоминания и отправьте им запись или повтор эфира.'],
-  ['c_attended', 'c_attended30', 'ушли в первые 30 минут', 'Начало эфира не держит. Сразу покажите, что человек получит к концу, и уберите долгое вступление.'],
-  ['c_attended30', 'c_offer', 'ушли до оффера', 'Смотрели долго, но не увидели продажу. Подумайте, как раньше показать тарифы или удержать до ' + OFFER_AT + '.'],
-  ['c_offer', 'c_orders', 'видели оффер, но не заказали', 'Самая тёплая аудитория: дожим в боте и письмах с дедлайном, разбор возражений.'],
-  ['c_orders', 'c_paid', 'оформили заказ, но не оплатили', 'Свяжитесь с ними сегодня: часто не хватает рассрочки или ответа на один вопрос.'],
-];
+/* потери между шагами после регистрации (ключ — шаг, на который не дошли): что это значит и что делать */
+const LOSS = {
+  c_attended: ['не пришли на эфир', 'Это люди, которые уже хотели прийти. Усильте напоминания и отправьте им запись или повтор эфира.'],
+  c_attended30: ['ушли в первые 30 минут', 'Начало эфира не держит. Сразу покажите, что человек получит к концу, и уберите долгое вступление.'],
+  c_offer: ['ушли до оффера', 'Смотрели долго, но не увидели продажу. Посмотрите на кривую удержания ниже: где именно уходят.'],
+  c_clicked: ['видели оффер, но не нажали кнопку тарифа', 'Оффер не зацепил: усилите ценность и дедлайн, покажите результаты учеников, разберите возражения прямо перед кнопками.'],
+  c_orders: { c_clicked: ['нажали кнопку тарифа, но не оформили заказ', 'Споткнулись на странице заказа: проверьте цену, рассрочку и лишние поля в форме.'],
+    c_offer: ['видели оффер, но не заказали', 'Самая тёплая аудитория: дожим в боте и письмах с дедлайном, разбор возражений.'] },
+  c_paid: ['оформили заказ, но не оплатили', 'Свяжитесь с ними сегодня: часто не хватает рассрочки или ответа на один вопрос.'],
+};
 
 let DATA = null, rows = [], period = 30, cut = 'source', KEYS = BASE.slice();
 
@@ -245,17 +258,19 @@ const LAYOUT = `
 <div class="sec"><h2>Экономика одного человека</h2><div class="h2sub">Сколько стоит и сколько приносит человек на каждом шаге</div></div>
 <div class="kps" id="econ"></div>
 
+<div class="sec"><h2>Как смотрят эфир</h2><div class="h2sub">Сколько зрителей остаётся в комнате на каждой минуте и где они уходят</div></div>
+<div class="card"><div class="retwrap"><div><h3>Кривая удержания</h3><div class="h2sub">Доля пришедших на эфир, которые были в комнате на этой минуте. Красным — самый сильный отток за 5 минут</div><div id="ret"></div></div><div id="retStats"></div></div></div>
+<div class="grid2">
+  <div class="card"><h3>Эфиры по времени</h3><div class="h2sub">Светлая полоса — пришли, тёмная — дошли до оффера (${OFFER_AT}). По дню эфира</div><div class="rows" id="slots"></div></div>
+  <div class="card"><h3>Telegram или MAX</h3><div class="h2sub">Какую кнопку выбрали на лендинге и что стало с этими людьми</div><div class="rows" id="msgs"></div></div>
+</div>
+
 <div class="sec"><h2>Динамика</h2><div class="h2sub">Наведите на день, чтобы увидеть цифры</div></div>
 <div class="grid2" style="margin-top:0">
   <div class="card"><h3>Регистрации и эфир по дням</h3><div class="h2sub">Регистрации — по дню записи, пришедшие и оплаты — по дню эфира и оплаты</div><div id="chart"></div>
     <div class="legend"><span><i style="background:#2F7D52"></i>Регистрации</span><span><i style="background:#BBD9C6"></i>Пришли на эфир</span><span><i style="background:#14130F;border-radius:50%"></i>Оплаты</span></div></div>
   <div class="card"><h3>Выручка и расход нарастающим итогом</h3><div class="h2sub">Пока зелёная линия выше красной, реклама окупается</div><div id="chart2"></div>
     <div class="legend"><span><i class="ln" style="background:#2F7D52"></i>Выручка</span><span><i class="ln" style="background:#C9785E"></i>Расход на рекламу</span></div></div>
-</div>
-
-<div class="grid2">
-  <div class="card"><h3>Эфиры по времени</h3><div class="h2sub">Светлая полоса — пришли, тёмная — досмотрели до оффера (${OFFER_AT}). По дню эфира</div><div class="rows" id="slots"></div></div>
-  <div class="card"><h3>Telegram или MAX</h3><div class="h2sub">Какую кнопку выбрали на лендинге и что стало с этими людьми</div><div class="rows" id="msgs"></div></div>
 </div>
 
 <div class="card" style="margin-top:14px">
@@ -269,7 +284,9 @@ const LAYOUT = `
 <details class="card" style="margin-top:14px"><summary>Как считаются цифры</summary><div class="inner"><dl class="defs">
 <dt>Визиты, открыли форму</dt><dd>Яндекс Метрика, счётчики рекламного и органического лендингов, по UTM визита.</dd>
 <dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама» или «…органика». Тестовые адреса исключены.</dd>
-<dt>Пришли, 30+ мин, дошли до оффера</dt><dd>Бизон: зрители комнат bonds, bonds-10, bonds-15, bonds-17. Оффер — момент, когда на эфире появляются кнопки тарифов (${OFFER_AT}). Человек считается один раз в день.</dd>
+<dt>Пришли, 30+ мин, дошли до оффера</dt><dd>Бизон: зрители комнат bonds, bonds-10, bonds-15, bonds-17. «Дошли до оффера» — были в комнате в ${OFFER_AT} или позже, когда на эфире уже кнопки тарифов. Человек считается один раз в день.</dd>
+<dt>Нажали кнопку тарифа</dt><dd>Бизон фиксирует нажатия на кнопки тарифов во время эфира.</dd>
+<dt>Кривая удержания</dt><dd>Для каждой минуты эфира — сколько пришедших были в комнате хотя бы часть этой минуты. Опоздавшие добавляются, ушедшие вычитаются, поэтому в начале кривая может расти.</dd>
 <dt>Когорта</dt><dd>В воронке шаги после регистрации считаются по людям, зарегистрировавшимся за период: что с ними стало. Поэтому по свежим регистрациям цифры ещё дорастут.</dd>
 <dt>Заказы и оплаты</dt><dd>GetCourse: заказы тарифов «Облигации: пошаговая сборка портфеля» от людей из групп вебинара. Оплата — «Завершён» или «Частично оплачен».</dd>
 <dt>Расход</dt><dd>Файл spend.csv в репозитории: дата; воронка; источник; канал; сумма. Без расхода CPL, CAC и ROMI не считаются.</dd>
@@ -342,7 +359,7 @@ function draw() {
   const bn = bottleneck(t);
   drawHero(t, p); drawInsights(t, list, bn); drawFunnel(t, noVisits, bn); drawBench(t); drawEcon(t, p);
   const days = dayList(list); chart(days); chart2(days);
-  drawSlots(t); drawMsgs(list); drawCut(list); drawDayTable(days); drawQuality();
+  drawRet(list, t); drawSlots(t); drawMsgs(list); drawCut(list); drawDayTable(days); drawQuality();
 }
 
 /* ---- деньги ---- */
@@ -370,13 +387,18 @@ function drawInsights(t, list, bn) {
   else if (t.leads) h += card('good', 'Узкое место', 'Все шаги в норме', 'Главный рычаг сейчас — трафик: при тех же конверсиях больше визитов даст пропорционально больше продаж.');
   else h += card('', 'Узкое место', 'Пока нет регистраций', 'Выводы появятся, когда за период будут регистрации.');
   // 2. где теряем больше всего людей
-  const losses = LOSS.filter(l => has(l[0]) && has(l[1])).map(l => ({ l, from: t[l[0]] || 0, lost: Math.max(0, (t[l[0]] || 0) - (t[l[1]] || 0)) })).filter(x => x.from > 0).sort((a, b) => b.lost - a.lost);
-  if (losses[0] && losses[0].lost) { const x = losses[0]; h += card('warn', 'Где теряем больше всего людей', `${fmt(x.lost)} из ${fmt(x.from)} ${x.l[2]}`, x.l[3]); }
+  const chain = ['leads', ...STEPS.slice(STEPS.findIndex(s => s.k === 'c_attended')).filter(s => has(s.k)).map(s => s.k)];
+  const losses = chain.slice(1).map((k, i) => { let l = LOSS[k]; if (l && !Array.isArray(l)) l = l[chain[i]]; return l && { l, from: t[chain[i]] || 0, lost: Math.max(0, (t[chain[i]] || 0) - (t[k] || 0)) }; })
+    .filter(x => x && x.from > 0).sort((a, b) => b.lost - a.lost);
+  if (losses[0] && losses[0].lost) { const x = losses[0]; h += card('warn', 'Где теряем больше всего людей', `${fmt(x.lost)} из ${fmt(x.from)} ${x.l[0]}`, x.l[1]); }
   else h += card('', 'Где теряем больше всего людей', 'Потерь пока нет', 'Нет людей после регистрации за выбранный период.');
   // 3. деньги на столе: незакрытые заказы и тёплые после оффера
   const avg = t.c_paid ? t.c_revenue / t.c_paid : t.paid ? t.revenue / t.paid : 0;
   const unpaid = Math.max(0, (t.c_orders || 0) - (t.c_paid || 0)), warm = Math.max(0, (t.c_offer || 0) - (t.c_orders || 0));
-  if (unpaid) h += card('bad', 'Деньги на столе', `${fmt(unpaid)} ${plural(unpaid, 'заказ не оплачен', 'заказа не оплачены', 'заказов не оплачены')}`, 'Свяжитесь с ними сегодня: рассрочка, ответ на вопрос, напоминание о дедлайне.' + (avg ? ` Это до ${money(unpaid * avg)} при текущем среднем чеке.` : ''));
+  const clickedNo = has('c_clicked') ? Math.max(0, (t.c_clicked || 0) - (t.c_orders || 0)) : 0;
+  if (!unpaid && clickedNo) h += card('bad', 'Деньги на столе', `${ppl(clickedNo)} ${plural(clickedNo, 'нажал кнопку тарифа, но не оформил заказ', 'нажали кнопку тарифа, но не оформили заказ', 'нажали кнопку тарифа, но не оформили заказ')}`,
+    'Они уже выбирали тариф. Напишите им лично в боте и проверьте страницу заказа.' + (avg ? ` Каждый покупатель — около ${money(avg)}.` : ''));
+  else if (unpaid) h += card('bad', 'Деньги на столе', `${fmt(unpaid)} ${plural(unpaid, 'заказ не оплачен', 'заказа не оплачены', 'заказов не оплачены')}`, 'Свяжитесь с ними сегодня: рассрочка, ответ на вопрос, напоминание о дедлайне.' + (avg ? ` Это до ${money(unpaid * avg)} при текущем среднем чеке.` : ''));
   else if (warm) h += card('warn', 'Деньги на столе', `${ppl(warm)} ${plural(warm, 'видел оффер, но не заказал', 'видели оффер, но не заказали', 'видели оффер, но не заказали')}`, 'Самая тёплая аудитория: персональный дожим в боте и письмах с дедлайном.' + (avg ? ` Каждый покупатель — около ${money(avg)}.` : ''));
   else h += card('good', 'Деньги на столе', 'Незакрытых заказов нет', has('c_orders') ? 'Все, кто оформил заказ, оплатили.' : 'Данные о заказах появятся после следующей сборки.');
   // 4. лучший источник
@@ -508,6 +530,53 @@ function chart2(days) {
     s += `<rect class="hit" x="${pl + i * bw}" y="0" width="${bw}" height="${H - pb}" data-tip="${esc(tip)}"/>`;
   });
   $('#chart2').innerHTML = s + '</svg>';
+}
+
+/* ---- кривая удержания эфира ---- */
+const hm = m => Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0');
+function sumRet(list) {
+  const n = Math.max(0, ...rows.map(r => (r.ret || []).length)), a = new Array(n).fill(0);
+  list.forEach(r => (r.ret || []).forEach((v, i) => { a[i] += v; }));
+  return a;
+}
+function drawRet(list, t) {
+  const box = $('#ret'), side = $('#retStats');
+  if (!has('ret')) { box.innerHTML = '<div class="empty">Кривая появится после следующей сборки данных</div>'; side.innerHTML = ''; return; }
+  const ret = sumRet(list), n = ret.length, peak = Math.max(0, ...ret), base = Math.max(t.attended || 0, peak);
+  if (!peak) { box.innerHTML = '<div class="empty">За период никто не пришёл на эфир</div>'; side.innerHTML = ''; return; }
+  const peakM = ret.indexOf(peak);
+  let drop = { m: -1, d: 0 }; for (let m = peakM; m + 5 < n; m++) { const d = ret[m] - ret[m + 5]; if (d > drop.d) drop = { m, d }; }
+  let half = -1; for (let m = peakM; m < n; m++) if (ret[m] <= peak / 2) { half = m; break; }
+  const atOffer = ret[Math.min(n - 1, OFFER_MIN)] || 0;
+  const W = 760, H = 260, pl = 40, pr = 12, pt = 22, pb = 26, top = Math.min(1, Math.ceil(peak / base * 4 + 1e-9) / 4) || 1;
+  const x = m => pl + (W - pl - pr) * m / Math.max(1, n - 1), y = v => H - pb - (H - pb - pt) * v / (base * top);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Кривая удержания зрителей эфира">`;
+  [0, .5, 1].forEach(g => { const v = base * top * g; s += `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="#EEEBE3"/><text x="${pl - 8}" y="${y(v) + 4}" font-size="11" fill="#6E6A5E" text-anchor="end">${Math.round(top * g * 100)}%</text>`; });
+  const bigDrop = drop.d >= 2 && drop.d >= peak * 0.1;
+  if (bigDrop) s += `<rect x="${x(drop.m)}" y="${pt}" width="${x(drop.m + 5) - x(drop.m)}" height="${H - pb - pt}" fill="#FBEBE6"/>`;
+  const pts = ret.map((v, m) => x(m).toFixed(1) + ' ' + y(v).toFixed(1));
+  s += `<path d="M${x(0)} ${y(0)} L${pts.join(' L')} L${x(n - 1)} ${y(0)} Z" fill="#E8F1EA"/>`;
+  s += `<path d="M${pts.join(' L')}" fill="none" stroke="#2F7D52" stroke-width="2" stroke-linejoin="round"/>`;
+  const mark = (m, label, strong) => m < n ? `<line x1="${x(m)}" x2="${x(m)}" y1="${pt - 6}" y2="${H - pb}" stroke="${strong ? '#14130F' : '#9A9586'}" stroke-dasharray="4 3" stroke-width="${strong ? 1.5 : 1}"/><text x="${x(m) + 5}" y="${pt - 8}" font-size="11" font-weight="${strong ? 800 : 600}" fill="${strong ? '#14130F' : '#6E6A5E'}">${label}</text>` : '';
+  s += mark(30, '30 мин', false) + mark(OFFER_MIN, 'Оффер ' + OFFER_AT, true);
+  for (let m = 0; m < n; m += 10) s += `<text x="${x(m)}" y="${H - 6}" font-size="11" fill="#6E6A5E" text-anchor="middle">${hm(m)}</text>`;
+  const bw = (W - pl - pr) / Math.max(1, n - 1);
+  ret.forEach((v, m) => {
+    const tip = `<b>${hm(m)} от начала</b><br>В комнате: <b>${fmt(v)}</b> (${pc(v / base)} пришедших)` + (m >= OFFER_MIN ? `<br><span class='tm'>кнопки тарифов уже на экране</span>` : '') + (bigDrop && m >= drop.m && m < drop.m + 5 ? `<br><span class='tm'>зона самого сильного оттока</span>` : '');
+    s += `<rect class="hit" x="${x(m) - bw / 2}" y="${pt}" width="${bw}" height="${H - pb - pt}" data-tip="${esc(tip)}"/>`;
+  });
+  box.innerHTML = s + '</svg>';
+  const st = (k, v, p, cls) => `<div class="st ${cls || ''}"><div class="k">${k}</div><b>${v}</b>${p ? `<p>${p}</p>` : ''}</div>`;
+  let h = '';
+  h += st('Пришли на эфир', ppl(base), `Больше всего одновременно — ${fmt(peak)} на ${hm(peakM)}.` + (base < MIN_BASE ? ' Зрителей пока мало, кривая шумная.' : ''));
+  h += st('Половина ушла к', half >= 0 ? hm(half) : 'не ушла', half >= 0 ? 'От пика осталось меньше половины зрителей.' : 'До конца эфира в комнате больше половины от пика.');
+  h += st('Были в комнате, когда появился оффер', `${fmt(atOffer)} · ${pc(atOffer / base)}`, `Кнопки тарифов появляются на ${OFFER_AT}.`, atOffer / base < BENCH.offer.lo ? 'bad' : '');
+  const atSale = drop.m <= OFFER_MIN && drop.m + 5 >= OFFER_MIN - 2;
+  if (bigDrop) h += st('Сильнее всего уходят', `${hm(drop.m)}–${hm(drop.m + 5)} · −${fmt(drop.d)}`, atSale
+    ? 'Уходят ровно на продаже, когда появляются кнопки. Смягчите переход: история ученика и анонс бонуса до кнопок, дедлайн и подарок за быстрое решение.'
+    : 'Посмотрите, что в сценарии в эти минуты: длинная теория, пауза, смена темы.', 'bad');
+  if (has('clicked')) h += st('Нажали кнопку тарифа', ppl(t.clicked || 0), t.offer ? `Из ${ppl(t.offer)}, кто застал оффер.` : '');
+  side.innerHTML = h;
 }
 
 /* ---- слоты эфира и мессенджеры ---- */
