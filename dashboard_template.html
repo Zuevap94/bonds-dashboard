@@ -268,7 +268,7 @@ function exportCsv() {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function refresh() {
   const btn = $('#refresh'), m = (DATA && DATA.meta) || {}, repo = m.repo || 'Zuevap94/bonds-dashboard';
-  const pw = sessionStorage.getItem('zd_pw');
+  const pw = localStorage.getItem('zd_pw');
   if (!m.trigger_token || !pw) { window.open('https://github.com/' + repo + '/actions/workflows/dashboard.yml', '_blank'); return; }
   const gh = (path, opt = {}) => fetch('https://api.github.com/repos/' + repo + path, { ...opt, cache: 'no-store',
     headers: { Authorization: 'Bearer ' + m.trigger_token, Accept: 'application/vnd.github+json', ...(opt.headers || {}) } });
@@ -325,11 +325,11 @@ async function bootEncrypted(url) {
   let b64;
   try { const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); b64 = await r.text(); }
   catch (e) { root.innerHTML = '<div class="gate"><h1>Данные ещё не опубликованы</h1><p>Файл с цифрами пока не загрузился. Первая сборка идёт в GitHub, попробуйте позже.</p></div>'; return; }
-  let pw = sessionStorage.getItem('zd_pw') || '';
+  let pw = localStorage.getItem('zd_pw') || '';
   for (;;) {
     if (!pw) pw = await gate();
-    try { const data = await decrypt(b64, pw); sessionStorage.setItem('zd_pw', pw); init(data); return; }
-    catch (e) { sessionStorage.removeItem('zd_pw'); pw = ''; root.innerHTML = ''; const p = gate(); setTimeout(() => { const er = $('#err'); if (er) er.textContent = 'Неверный пароль'; }, 0); pw = await p; }
+    try { const data = await decrypt(b64, pw); localStorage.setItem('zd_pw', pw); init(data); return; }
+    catch (e) { localStorage.removeItem('zd_pw'); pw = ''; root.innerHTML = ''; const p = gate(); setTimeout(() => { const er = $('#err'); if (er) er.textContent = 'Неверный пароль'; }, 0); pw = await p; }
   }
 }
 window.zdInit = init; window.zdBootEncrypted = bootEncrypted;
