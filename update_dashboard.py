@@ -9,6 +9,8 @@
   visits, form_open, lead_goal — Яндекс Метрика (счётчики рекламы и органики)
   leads                        — GetCourse: добавлен в группу вебинара (реклама 5009549 / органика 5011602)
   attended, attended30         — Бизон: зрители эфиров bonds / bonds-10 / bonds-15 / bonds-17 (≥30 мин)
+  offer, att_min               — Бизон: досмотрели до оффера (кнопки тарифов на 1:21), сумма минут просмотра
+  a10…a19, q10…q19, m10…m19    — Бизон по слотам эфира 10/15/17/19: пришли, дошли до оффера, минуты
   orders, paid, revenue        — GetCourse: заказы трёх тарифов курса
   spend                        — spend.csv (вручную)
 Привязка к источнику: UTM пользователя в GetCourse (их ставит Vakas при регистрации); визиты — UTM визита в Метрике.
@@ -24,6 +26,11 @@ START = dt.date(2026, 10, 20)          # запуск воронки — ран�
 GROUPS = {5009549: 'Реклама', 5011602: 'Органика'}
 COUNTERS = {'METRIKA_COUNTER_ADS': 'Реклама', 'METRIKA_COUNTER_ORGANIC': 'Органика'}
 ROOMS = ('121345:bonds', '121345:bonds-10', '121345:bonds-15', '121345:bonds-17')
+SLOTS = {'121345:bonds': '19', '121345:bonds-10': '10', '121345:bonds-15': '15', '121345:bonds-17': '17'}  # комната → час эфира
+OFFER_MIN = 81                         # в сценарии bonds кнопки тарифов появляются на 1:21:23
+SLOT_FIELDS = [p + h for p in ('a', 'q', 'm') for h in ('10', '15', '17', '19')]
+FIELDS = ['visits', 'form_open', 'lead_goal', 'leads', 'attended', 'attended30', 'offer', 'att_min', 'orders', 'paid', 'revenue', 'spend',
+          'c_attended', 'c_attended30', 'c_offer', 'c_orders', 'c_paid', 'c_revenue'] + SLOT_FIELDS
 COURSE_MARK = 'Облигации: пошаговая сборка портфеля'
 EXCLUDE_EMAILS = {e.strip().lower() for e in os.environ.get('EXCLUDE_EMAILS', '').split(',') if e.strip()}  # тестовые адреса, задаются в окружении
 EXCLUDE_SOURCES = {'test'}
@@ -240,12 +247,13 @@ def bizon(env, members):
         reports += [r for r in lst if r.get('name') in ROOMS or r.get('name', '').split('*')[0] in ROOMS]
         if len(lst) < 100: break
         skip += 100
-    seen = {}  # (email, date) → minutes
+    seen = {}  # (email, date) → (minutes, слот эфира)
     match = viewer_matcher(members)
     for rep in reports:
         wid = rep['webinarId']
         m = re.search(r'\*(\d{4}-\d{2}-\d{2})T', wid)
         wdate = m.group(1) if m else (rep.get('created') or '')[:10]
+        slot = SLOTS.get(rep.get('name', '').split('*')[0], '19')
         skip, limit = 0, 500
         while True:
             j = json.loads(http('https://online.bizon365.ru/api/v1/webinars/reports/get?webinarId=%s&skip=%d&limit=%d' % (urllib.parse.quote(wid), skip, limit), h))
@@ -259,24 +267,26 @@ def bizon(env, members):
                 email = match(u)
                 mins = sum(max(0, (iv.get('e', 0) - iv.get('s', 0))) for iv in (u.get('vi') or [])) / 60.0
                 k = (email, wdate)
-                seen[k] = max(seen.get(k, 0), mins)
+                if k not in seen or mins > seen[k][0]: seen[k] = (mins, slot)
             if len(users) < limit: break
             skip += limit
-    out = defaultdict(lambda: {'attended': 0, 'attended30': 0})
-    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'minutes': 0.0})
+    out = defaultdict(lambda: dict({'attended': 0, 'attended30': 0, 'offer': 0, 'att_min': 0.0}, **{f: 0 for f in SLOT_FIELDS}))
+    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'offer': 0, 'minutes': 0.0})
     unknown = set()
-    for (email, wdate), mins in seen.items():
+    for (email, wdate), (mins, slot) in seen.items():
         if email in EXCLUDE_EMAILS: continue
         m = members.get(email)
         if not m:
             unknown.add(email)
             m = {'funnel': 'Реклама', 'source': NA, 'medium': NA, 'campaign': NA, 'messenger': NA}
         r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
-        r['attended'] += 1
+        r['attended'] += 1; r['att_min'] += mins; r['a' + slot] += 1; r['m' + slot] += mins
         if mins >= 30: r['attended30'] += 1
+        if mins >= OFFER_MIN: r['offer'] += 1; r['q' + slot] += 1
         pe = per_email[email]
         pe['attended'] = 1; pe['minutes'] = max(pe['minutes'], mins)
         if mins >= 30: pe['attended30'] = 1
+        if mins >= OFFER_MIN: pe['offer'] = 1
     log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown))
     return out, per_email, len(unknown)
 
@@ -308,14 +318,14 @@ def build(env):
     orders, paid_by_email = gc_orders(env, members)
     attendance, att_by_email, unknown_viewers = bizon(env, members)
     parts.update({'orders': orders, 'bizon': attendance, 'spend': spend()})
-    rows = defaultdict(lambda: {'visits': 0, 'form_open': 0, 'lead_goal': 0, 'leads': 0, 'attended': 0, 'attended30': 0, 'orders': 0, 'paid': 0, 'revenue': 0.0, 'spend': 0.0,
-                                'c_attended': 0, 'c_attended30': 0, 'c_paid': 0, 'c_revenue': 0.0})
+    rows = defaultdict(lambda: {f: (0.0 if f in ('revenue', 'spend', 'c_revenue', 'att_min') or f[0] == 'm' and f[1:].isdigit() else 0) for f in FIELDS})
     for k, v in parts['metrika'].items(): rows[k + (NA,)].update({x: rows[k + (NA,)][x] + v[x] for x in v})  # визиты без мессенджера
     for email, m in members.items():  # когорта: что стало с людьми, зарегистрировавшимися в этот день
         r = rows[(m['date'], m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['leads'] += 1
         a, pm = att_by_email.get(email), paid_by_email.get(email)
-        if a: r['c_attended'] += a['attended']; r['c_attended30'] += a['attended30']
+        if a: r['c_attended'] += a['attended']; r['c_attended30'] += a['attended30']; r['c_offer'] += a['offer']
+        if pm and pm['orders']: r['c_orders'] += 1
         if pm and pm['paid']: r['c_paid'] += 1; r['c_revenue'] += pm['revenue']
     for k, v in parts['orders'].items():
         for x in v: rows[k][x] += v[x]
@@ -356,6 +366,7 @@ def render(table, env, meta=None):
         (docs / 'data.enc').write_text(encrypt(json.dumps(enc, ensure_ascii=False), pw), encoding='ascii')
         boot = "const DATA_URL = (window.DASHBOARD_DATA_URL || 'data.enc'); bootEncrypted(DATA_URL);"
         (docs / 'index.html').write_text(tpl.replace('/*__BOOT__*/', boot), encoding='utf-8')
+        import make_tilda_block; make_tilda_block.write(tpl)  # docs/dashboard.js — код дашборда для блока Тильды
         log('Зашифрованные данные: docs/data.enc')
 
 
