@@ -14,7 +14,7 @@
   ret                          — Бизон: удержание, сколько зрителей было в комнате на каждой минуте эфира (список из RET_MIN чисел)
   a10…a19, q10…q19, m10…m19    — Бизон по слотам эфира 10/15/17/19: пришли, дошли до оффера, минуты
   orders, paid, revenue        — GetCourse: заказы трёх тарифов курса
-  spend                        — spend.csv (вручную)
+  spend                        — Яндекс Директ (API отчётов, если задан DIRECT_TOKEN) + spend.csv (остальные площадки вручную)
 Привязка к источнику: UTM пользователя в GetCourse (их ставит Vakas при регистрации); визиты — UTM визита в Метрике.
 """
 import base64, csv, datetime as dt, json, os, pathlib, re, sys, time, traceback, urllib.error, urllib.parse, urllib.request
@@ -322,13 +322,56 @@ def spend():
     return out
 
 
+def direct(env):
+    """Яндекс Директ, API отчётов: расход по дням и кампаниям (с НДС) → {(date, 'Реклама', 'yandex', 'cpc', campaign_id): сумма}.
+    Кампания = её номер в Директе: в объявлениях ставим utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id},
+    тогда расход ложится на те же строки, что визиты и регистрации. DIRECT_CAMPAIGNS — номера через запятую, если в кабинете есть чужие кампании."""
+    out = defaultdict(float)
+    token = env.get('DIRECT_TOKEN')
+    if not token: return out
+    only = {c.strip() for c in env.get('DIRECT_CAMPAIGNS', '').split(',') if c.strip()}
+    today = dt.datetime.now(MSK).date().isoformat()
+    body = json.dumps({'params': {
+        'SelectionCriteria': {'DateFrom': START.isoformat(), 'DateTo': today},
+        'FieldNames': ['Date', 'CampaignId', 'CampaignName', 'Cost'],
+        'ReportName': 'dashboard %s %s' % (today, int(time.time())), 'ReportType': 'CAMPAIGN_PERFORMANCE_REPORT',
+        'DateRangeType': 'CUSTOM_DATE', 'Format': 'TSV', 'IncludeVAT': 'YES', 'IncludeDiscount': 'NO'}}).encode()
+    h = {'Authorization': 'Bearer ' + token, 'Accept-Language': 'ru', 'Content-Type': 'application/json; charset=utf-8',
+         'processingMode': 'auto', 'returnMoneyInMicros': 'false', 'skipReportHeader': 'true', 'skipReportSummary': 'true'}
+    if env.get('DIRECT_LOGIN'): h['Client-Login'] = env['DIRECT_LOGIN']
+    for _ in range(40):  # отчёт строится офлайн: 201/202 — «ещё готовится», спрашиваем снова через retryIn секунд
+        req = urllib.request.Request('https://api.direct.yandex.com/json/v5/reports', data=body, headers=h, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                if r.status == 200: txt = r.read().decode('utf-8'); break
+                time.sleep(min(int(r.headers.get('retryIn') or 5), 30))
+        except urllib.error.HTTPError as e:
+            raise RuntimeError('Директ HTTP %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:300]))
+    else:
+        raise RuntimeError('Директ: отчёт не построился за отведённое время')
+    names = {}
+    for row in csv.DictReader(txt.splitlines(), delimiter='\t'):
+        cid = row.get('CampaignId', '')
+        if only and cid not in only: continue
+        try: cost = float(row.get('Cost') or 0)
+        except ValueError: continue
+        if cost: out[(row['Date'], 'Реклама', 'yandex', 'cpc', cid)] += cost; names[cid] = row.get('CampaignName', '')
+    log('Директ: кампаний с расходом', len(names))  # суммы и названия в лог не пишем — логи GitHub публичные
+    return out
+
+
 # ---------------------------------------------------------------- сборка
 def build(env):
     parts = {'metrika': metrika(env)}
     members = gc_members(env)
     orders, paid_by_email = gc_orders(env, members)
     attendance, att_by_email, unknown_viewers = bizon(env, members)
-    parts.update({'orders': orders, 'bizon': attendance, 'spend': spend()})
+    cost = spend()
+    try:
+        for k, v in direct(env).items(): cost[k] += v
+    except Exception as e:  # без Директа дашборд всё равно собирается — расход просто не подтянется
+        log('Директ: не удалось получить расход —', e)
+    parts.update({'orders': orders, 'bizon': attendance, 'spend': cost})
     rows = defaultdict(lambda: {f: (0.0 if f in ('revenue', 'spend', 'c_revenue', 'att_min') or f[0] == 'm' and f[1:].isdigit() else 0) for f in FIELDS})
     for k, v in parts['metrika'].items(): rows[k + (NA,)].update({x: rows[k + (NA,)][x] + v[x] for x in v})  # визиты без мессенджера
     for email, m in members.items():  # когорта: что стало с людьми, зарегистрировавшимися в этот день

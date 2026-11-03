@@ -30,6 +30,8 @@ jobs:
           GETCOURSE_KEY: ${{ secrets.GETCOURSE_KEY }}
           BIZON_TOKEN: ${{ secrets.BIZON_TOKEN }}
           METRIKA_TOKEN: ${{ secrets.METRIKA_TOKEN }}
+          DIRECT_TOKEN: ${{ secrets.DIRECT_TOKEN }}
+          DIRECT_CAMPAIGNS: ${{ vars.DIRECT_CAMPAIGNS }}
           DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
           EXCLUDE_EMAILS: ${{ secrets.EXCLUDE_EMAILS }}
           DASHBOARD_TRIGGER_TOKEN: ${{ secrets.DASHBOARD_TRIGGER_TOKEN }}
