@@ -323,12 +323,13 @@ def spend():
 
 
 def direct(env):
-    """Яндекс Директ, API отчётов: расход по дням и кампаниям (с НДС) → {(date, 'Реклама', 'yandex', 'cpc', campaign_id): сумма}.
+    """Яндекс Директ, API отчётов: расход по дням и кампаниям (с НДС) → ({(date, 'Реклама', 'yandex', 'cpc', campaign_id): сумма}, {campaign_id: название}).
+    Названия уходят только в зашифрованные данные — по ним дашборд подписывает кампании и даёт отмечать их галочками.
     Кампания = её номер в Директе: в объявлениях ставим utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id},
     тогда расход ложится на те же строки, что визиты и регистрации. DIRECT_CAMPAIGNS — номера через запятую, если в кабинете есть чужие кампании."""
-    out = defaultdict(float)
+    out, names = defaultdict(float), {}
     token = env.get('DIRECT_TOKEN')
-    if not token: return out
+    if not token: return out, names
     only = {c.strip() for c in env.get('DIRECT_CAMPAIGNS', '').split(',') if c.strip()}
     today = dt.datetime.now(MSK).date().isoformat()
     body = json.dumps({'params': {
@@ -347,9 +348,10 @@ def direct(env):
                 time.sleep(min(int(r.headers.get('retryIn') or 5), 30))
         except urllib.error.HTTPError as e:
             raise RuntimeError('Директ HTTP %s %s' % (e.code, e.read().decode('utf-8', 'replace')[:300]))
+        except (TimeoutError, urllib.error.URLError):  # Директ иногда долго молчит — спрашиваем ещё раз
+            time.sleep(10)
     else:
         raise RuntimeError('Директ: отчёт не построился за отведённое время')
-    names = {}
     for row in csv.DictReader(txt.splitlines(), delimiter='\t'):
         cid = row.get('CampaignId', '')
         if only and cid not in only: continue
@@ -357,7 +359,7 @@ def direct(env):
         except ValueError: continue
         if cost: out[(row['Date'], 'Реклама', 'yandex', 'cpc', cid)] += cost; names[cid] = row.get('CampaignName', '')
     log('Директ: кампаний с расходом', len(names))  # суммы и названия в лог не пишем — логи GitHub публичные
-    return out
+    return out, names
 
 
 # ---------------------------------------------------------------- сборка
@@ -366,9 +368,10 @@ def build(env):
     members = gc_members(env)
     orders, paid_by_email = gc_orders(env, members)
     attendance, att_by_email, unknown_viewers = bizon(env, members)
-    cost = spend()
+    cost, campaigns = spend(), {}
     try:
-        for k, v in direct(env).items(): cost[k] += v
+        dcost, campaigns = direct(env)
+        for k, v in dcost.items(): cost[k] += v
     except Exception as e:  # без Директа дашборд всё равно собирается — расход просто не подтянется
         log('Директ: не удалось получить расход —', e)
     parts.update({'orders': orders, 'bizon': attendance, 'spend': cost})
@@ -393,7 +396,7 @@ def build(env):
     for (d, funnel, src, med, camp, msg), v in sorted(rows.items()):
         if d < START.isoformat() or d > today: continue
         table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, messenger=msg, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
-    meta = {'members': len(members), 'unknown_viewers': unknown_viewers,
+    meta = {'members': len(members), 'unknown_viewers': unknown_viewers, 'campaigns': campaigns,
             'next_run': 'автоматически 5 раз в день или кнопкой «Обновить»', 'excluded': len(EXCLUDE_EMAILS)}
     return table, members, meta
 
