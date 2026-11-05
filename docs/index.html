@@ -25,6 +25,23 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .seg button{font:inherit;font-weight:600;font-size:13px;border:0;background:none;border-radius:8px;padding:6px 10px;min-height:30px;cursor:pointer;color:var(--text)}
 .zd .seg button.on{background:var(--ink);color:#fff}
 .zd .filters .grow{flex:1}
+.zd .filters{position:relative}
+.zd .filters>button.camp.part{border-color:var(--amber);background:var(--amber-lt)}
+/* выбор кампаний */
+.zd .cpop{position:absolute;left:0;top:calc(100% + 8px);z-index:20;width:min(520px,100%);background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 40px rgba(20,19,15,.16);padding:16px}
+.zd .cpop h3{margin-bottom:2px}
+.zd .cpop .h2sub{margin-bottom:10px}
+.zd .cpop label{display:grid;grid-template-columns:20px minmax(0,1fr);gap:4px 10px;align-items:start;padding:10px 4px;border-top:1px solid var(--soft);cursor:pointer}
+.zd .cpop input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--green);cursor:pointer}
+.zd .cpop .cn{font-weight:700;font-size:13.5px;line-height:1.3;overflow-wrap:anywhere}
+.zd .cpop .cs{grid-column:2;font-size:12px;color:var(--mute)}
+.zd .cpop .cs.off{color:var(--amber)}
+.zd .cpop .cb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.zd .cpop .cb button{font:inherit;font-weight:700;font-size:12.5px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 11px;cursor:pointer;color:var(--text);min-height:34px}
+.zd .cpop .cb .grow{flex:1}
+.zd .cpop .cb .ok{background:var(--ink);border-color:var(--ink);color:#fff}
+.zd .csvbtn{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;cursor:pointer;color:var(--text)}
+.zd td.nm small{display:block;color:var(--faint);font-size:11px;font-weight:600}
 @media(max-width:760px){.zd .bar{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;padding-bottom:0}.zd .filters select{flex:1 1 40%}.zd .seg{flex:1 1 100%}.zd .seg button{flex:1;padding:6px 4px}.zd .filters .grow{display:none}.zd .filters>button{flex:1}}
 .zd #refresh{background:var(--green);border-color:var(--green);color:#fff}
 .zd #refresh:disabled{opacity:.75;cursor:progress}
@@ -237,10 +254,12 @@ const LAYOUT = `
   <select id="fSource" aria-label="Источник"><option value="">Все источники</option></select>
   <select id="fMedium" aria-label="Канал"><option value="">Все каналы</option></select>
   <select id="fMsg" aria-label="Мессенджер"><option value="">Все мессенджеры</option></select>
+  <button id="fCamp" class="camp" hidden aria-haspopup="true" aria-expanded="false"></button>
   <div class="seg" id="per"><button data-p="7">7 дней</button><button data-p="14">14 дней</button><button data-p="30" class="on">30 дней</button><button data-p="0">Всё время</button></div>
   <span class="grow"></span>
   <button id="csv" title="Скачать строки за выбранный период">CSV</button>
   <button id="refresh" title="Собрать свежие данные прямо сейчас (несколько минут)">↻ Обновить</button>
+  <div class="cpop" id="cpop" hidden></div>
 </div></div>
 <div id="warn" class="note" hidden></div>
 <div class="hero" id="hero"></div>
@@ -274,7 +293,7 @@ const LAYOUT = `
 
 <div class="card" style="margin-top:14px">
   <div class="head"><div><h3>Откуда приходят и кто покупает</h3><div class="h2sub">Пришли, оффер и оплаты — по когорте: что стало с людьми, которые зарегистрировались из этого источника за период</div></div>
-    <div class="tabs" id="cuts"><button data-c="source" class="on">Источник</button><button data-c="medium">Канал</button><button data-c="campaign">Кампания</button><button data-c="messenger">Мессенджер</button><button data-c="funnel">Воронка</button></div></div>
+    <div class="tabs" id="cuts"><button data-c="source" class="on">Источник</button><button data-c="medium">Канал</button><button data-c="campaign">Кампания</button><button data-c="messenger">Мессенджер</button><button data-c="funnel">Воронка</button><button class="csvbtn" id="cutCsv" title="Скачать эту таблицу">CSV</button></div></div>
   <div class="tblwrap"><table id="tCut"></table></div>
 </div>
 
@@ -288,7 +307,8 @@ const LAYOUT = `
 <dt>Кривая удержания</dt><dd>Для каждой минуты эфира — сколько пришедших были в комнате хотя бы часть этой минуты. Опоздавшие добавляются, ушедшие вычитаются, поэтому в начале кривая может расти.</dd>
 <dt>Когорта</dt><dd>В воронке шаги после регистрации считаются по людям, зарегистрировавшимся за период: что с ними стало. Поэтому по свежим регистрациям цифры ещё дорастут.</dd>
 <dt>Заказы и оплаты</dt><dd>GetCourse: заказы тарифов «Облигации: пошаговая сборка портфеля» от людей из групп вебинара. Оплата — «Завершён» или «Частично оплачен».</dd>
-<dt>Расход</dt><dd>Файл spend.csv в репозитории: дата; воронка; источник; канал; сумма. Без расхода CPL, CAC и ROMI не считаются.</dd>
+<dt>Расход</dt><dd>Яндекс Директ — автоматически, по дням и кампаниям, с НДС. Расход кампании ложится на её визиты и регистрации по метке utm_campaign={campaign_id}. Другие площадки — файл spend.csv в репозитории: дата; воронка; источник; канал; сумма. Без расхода CPL, CAC и ROMI не считаются.</dd>
+<dt>Кампании</dt><dd>Кнопка «Кампании» в фильтрах: снятая галочка убирает кампанию из всех цифр — расход, визиты, регистрации, оплаты. Новые кампании, которые ведут на лендинг (есть визиты или регистрации с их меткой), включаются сами. Кампании только с расходом — выключены, пока их не отметить. Выбор запоминается в этом браузере.</dd>
 <dt>Доход с регистрации</dt><dd>Выручка когорты, делённая на число регистраций. Это потолок цены регистрации: если платить за регистрацию меньше, реклама окупается.</dd>
 <dt>CPL, CAC, ROMI</dt><dd>CPL = расход / регистрации. CAC = расход / покупатели. ROMI = (выручка − расход) / расход. Прибыль — без налогов и комиссий.</dd>
 <dt>Нормы рынка</dt><dd>Типичные диапазоны для бесплатных вебинаров в онлайн-образовании. Это не план, а подсказка, где искать проблему. Пока на шаге меньше ${MIN_BASE} человек, вывод предварительный.</dd>
@@ -308,8 +328,10 @@ function init(data) {
   fill('#fSource', rows.map(r => r.source)); fill('#fMedium', rows.map(r => r.medium)); fill('#fMsg', rows.map(r => r.messenger || '(не указан)'));
   ['#fFunnel', '#fSource', '#fMedium', '#fMsg'].forEach(s => $(s).addEventListener('change', draw));
   root.querySelectorAll('#per button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#per button').forEach(x => x.classList.remove('on')); b.classList.add('on'); period = +b.dataset.p; draw(); }));
-  root.querySelectorAll('#cuts button').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#cuts button').forEach(x => x.classList.remove('on')); b.classList.add('on'); cut = b.dataset.c; draw(); }));
+  root.querySelectorAll('#cuts button[data-c]').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#cuts button[data-c]').forEach(x => x.classList.remove('on')); b.classList.add('on'); cut = b.dataset.c; draw(); }));
   $('#csv').addEventListener('click', exportCsv);
+  $('#cutCsv').addEventListener('click', exportCut);
+  setupCamps();
   $('#refresh').addEventListener('click', refresh);
   draw();
 }
@@ -320,7 +342,57 @@ const shift = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate
 function range() { if (!period) return ['', '']; const from = shift(today(), -period + 1); return [from, shift(from, -period)]; }
 function base() {
   const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value, g = $('#fMsg').value;
-  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m) && (!g || (r.messenger || '(не указан)') === g));
+  return rows.filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m) && (!g || (r.messenger || '(не указан)') === g) && campOn(r.campaign));
+}
+
+/* ---- кампании Директа: галочки «считать / не считать». По умолчанию включены те, что ведут на лендинг (есть визиты или регистрации
+   с их меткой); кампании только с расходом выключены. Ручной выбор хранится в этом браузере и перекрывает умолчание. ---- */
+let CAMPS = [], campPick = {};
+const CAMP_KEY = 'zd_camps';
+const campName = id => ((DATA && DATA.meta && DATA.meta.campaigns) || {})[id] || '';
+const campDefault = c => c.visits + c.leads > 0;
+function campOn(id) { const c = CAMPS.find(x => x.id === id); return !c || (id in campPick ? campPick[id] : campDefault(c)); }
+function setupCamps() {
+  const names = (DATA && DATA.meta && DATA.meta.campaigns) || {}, by = {};
+  rows.forEach(r => { if (!(r.campaign in names) && !(r.spend > 0 && r.campaign && r.campaign !== '(не указан)')) return;
+    const c = by[r.campaign] = by[r.campaign] || { id: r.campaign, spend: 0, visits: 0, leads: 0, paid: 0, revenue: 0 };
+    c.spend += +r.spend || 0; c.visits += +r.visits || 0; c.leads += +r.leads || 0; c.paid += +r.c_paid || 0; c.revenue += +r.c_revenue || 0; });
+  CAMPS = Object.values(by).sort((a, b) => campDefault(b) - campDefault(a) || b.spend - a.spend);
+  try { campPick = JSON.parse(localStorage.getItem(CAMP_KEY) || '{}') || {}; } catch (e) { campPick = {}; }
+  const btn = $('#fCamp'), pop = $('#cpop');
+  if (!CAMPS.length) return;
+  btn.hidden = false; campLabel();
+  btn.addEventListener('click', e => { e.stopPropagation(); pop.hidden ? openCamps() : closeCamps(); });
+  document.addEventListener('click', e => { if (!pop.hidden && !e.composedPath().includes(pop) && e.target !== btn) closeCamps(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) closeCamps(); });
+}
+function campLabel() {
+  const on = CAMPS.filter(c => campOn(c.id)).length, btn = $('#fCamp');
+  btn.textContent = on === CAMPS.length ? 'Кампании: все ' + on : 'Кампании: ' + on + ' из ' + CAMPS.length;
+  btn.classList.toggle('part', on < CAMPS.length);
+}
+function openCamps() {
+  const pop = $('#cpop');
+  pop.innerHTML = `<h3>Какие кампании считать</h3><div class="h2sub">Снятая кампания пропадает из всех цифр дашборда. Цифры в строках — за всё время</div>`
+    + CAMPS.map(c => {
+      const nm = campName(c.id), on = campOn(c.id);
+      const stat = [money(c.spend) + ' расход', fmt(c.visits) + ' ' + plural(c.visits, 'визит', 'визита', 'визитов'), fmt(c.leads) + ' рег.', c.paid ? fmt(c.paid) + ' ' + plural(c.paid, 'оплата', 'оплаты', 'оплат') : ''].filter(Boolean).join(' · ');
+      const why = campDefault(c) ? '' : `<div class="cs off">Нет визитов с меткой этой кампании — похоже, она ведёт не на лендинг вебинара</div>`;
+      return `<label><input type="checkbox" data-id="${esc(c.id)}"${on ? ' checked' : ''}><span class="cn">${esc(nm || c.id)}</span><span class="cs">${nm ? '№ ' + esc(c.id) + ' · ' : ''}${stat}</span>${why}</label>`;
+    }).join('')
+    + `<div class="cb"><button data-a="all">Отметить все</button><button data-a="def" title="Включены кампании, которые ведут на лендинг">По умолчанию</button><span class="grow"></span><button class="ok" data-a="close">Готово</button></div>`;
+  pop.querySelectorAll('input').forEach(i => i.addEventListener('change', () => { campPick[i.dataset.id] = i.checked; campSave(); }));
+  pop.querySelectorAll('.cb button').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.a === 'close') return closeCamps();
+    campPick = {}; if (b.dataset.a === 'all') CAMPS.forEach(c => campPick[c.id] = true);
+    campSave(); openCamps();
+  }));
+  pop.hidden = false; $('#fCamp').setAttribute('aria-expanded', 'true');
+}
+function closeCamps() { $('#cpop').hidden = true; $('#fCamp').setAttribute('aria-expanded', 'false'); }
+function campSave() {
+  try { localStorage.setItem(CAMP_KEY, JSON.stringify(campPick)); } catch (e) {}
+  campLabel(); draw();
 }
 function filtered() { const [from] = range(); return base().filter(r => !from || r.date >= from); }
 function previous() { const [from, pfrom] = range(); if (!from) return []; return base().filter(r => r.date >= pfrom && r.date < from); }
@@ -625,7 +697,8 @@ function drawCut(list) {
     const cpl = t.leads && t.spend ? t.spend / t.leads : 0, cac = t.c_paid && t.spend ? t.spend / t.c_paid : 0;
     const romi = t.spend ? Math.round((t.c_revenue - t.spend) / t.spend * 100) + '%' : '—';
     const isTot = cls === 'tot';
-    return `<tr class="${cls || ''}"><td class="nm" title="${esc(name)}">${esc(name)}</td><td>${nov && !isTot ? '—' : fmt(t.visits)}</td>
+    const cn = cut === 'campaign' && !isTot ? campName(name) : '';
+    return `<tr class="${cls || ''}"><td class="nm" title="${esc(cn ? cn + ' · № ' + name : name)}">${cn ? esc(cn) + '<small>№ ' + esc(name) + '</small>' : esc(name)}</td><td>${nov && !isTot ? '—' : fmt(t.visits)}</td>
       <td class="db">${isTot ? '' : `<span style="width:${Math.max(4, 70 * t.leads / maxL)}%"></span>`}<em>${fmt(t.leads)}</em></td>
       <td class="pc">${nov && !isTot ? '—' : pc(ratio(t.leads, t.visits))}</td>
       <td>${fmt(t.c_attended)} ${chip(t.c_attended, t.leads, 'attend')}</td>
@@ -649,9 +722,23 @@ function drawQuality() {
 }
 function exportCsv() {
   const list = filtered(); if (!list.length) return;
-  const cols = ['date', 'funnel', 'source', 'medium', 'campaign', 'messenger', ...KEYS];
-  const csv = '﻿' + cols.join(';') + '\n' + list.map(r => cols.map(c => String(r[c] ?? '').replace('.', ',')).join(';')).join('\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'voronka-obligacii.csv'; a.click();
+  const cols = ['date', 'funnel', 'source', 'medium', 'campaign', 'campaign_name', 'messenger', ...KEYS];
+  saveCsv(cols, list.map(r => Object.assign({ campaign_name: campName(r.campaign) }, r)), 'voronka-obligacii.csv');
+}
+function saveCsv(cols, list, name) {
+  const cell = v => { const x = typeof v === 'number' ? String(Math.round(v * 100) / 100).replace('.', ',') : String(v ?? ''); return /[;"\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+  const csv = '\ufeff' + cols.join(';') + '\n' + list.map(r => cols.map(c => cell(r[c])).join(';')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = name; a.click();
+}
+function exportCut() {   // таблица «Откуда приходят» в текущем разрезе, периоде и фильтрах
+  const list = filtered(); if (!list.length) return;
+  const g = group(list.map(r => cut === 'messenger' ? Object.assign({}, r, { messenger: r.messenger || '(не указан)' }) : r), cut)
+    .filter(x => x.t.visits || x.t.leads || x.t.c_attended || x.t.orders || x.t.spend).sort((a, b) => b.t.leads - a.t.leads || b.t.visits - a.t.visits);
+  const out = g.map(x => { const t = x.t; return { [cut]: x.key, name: cut === 'campaign' ? campName(x.key) : '', visits: t.visits, leads: t.leads, attended: t.c_attended, offer: t.c_offer || 0,
+    paid: t.c_paid, revenue: t.c_revenue, spend: t.spend, cpl: t.leads && t.spend ? t.spend / t.leads : '', cac: t.c_paid && t.spend ? t.spend / t.c_paid : '',
+    romi: t.spend ? Math.round((t.c_revenue - t.spend) / t.spend * 100) + '%' : '' }; });
+  const [from] = range();
+  saveCsv([cut, ...(cut === 'campaign' ? ['name'] : []), 'visits', 'leads', 'attended', 'offer', 'paid', 'revenue', 'spend', 'cpl', 'cac', 'romi'], out, 'razrez-' + cut + '-' + (from || 'vse') + '.csv');
 }
 
 /* ---- подсказки при наведении (и по тапу на телефоне) ---- */
