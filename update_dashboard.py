@@ -439,7 +439,7 @@ def main():
         w = csv.DictWriter(f, fieldnames=[k for k in table[0] if k != 'ret'] if table else ['date'], delimiter=';', extrasaction='ignore')
         w.writeheader(); w.writerows(table)  # data/ не попадает в репозиторий (.gitignore)
     render(table, env, meta)
-    tot = {k: sum(r[k] for r in table) for k in ('visits', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue', 'spend')}
+    tot = {k: sum(r[k] for r in table) for k in ('visits', 'leads', 'attended', 'attended30', 'orders', 'paid', 'revenue')}  # расход в лог не пишем — логи GitHub публичные
     log('Итого с', START.isoformat(), tot)
     log('Готово за %.0f c → %s' % (time.time() - t0, OUT / 'dashboard.html'))
 
