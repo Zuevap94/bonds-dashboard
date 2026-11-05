@@ -686,7 +686,10 @@ function msgVerdict(g, NAMES) {
 }
 
 /* ---- таблицы ---- */
+// во вкладке «Кампания» — только реклама: у органики кампаний нет, там метки ссылок из профилей
+const cutRows = list => cut === 'campaign' ? list.filter(r => r.funnel === 'Реклама') : list;
 function drawCut(list) {
+  list = cutRows(list);
   const keyLabel = { source: 'Источник', medium: 'Канал', campaign: 'Кампания', messenger: 'Мессенджер', funnel: 'Воронка' }[cut];
   const groups = group(list.map(r => cut === 'messenger' ? Object.assign({}, r, { messenger: r.messenger || '(не указан)' }) : r), cut)
     .filter(g => g.t.visits || g.t.leads || g.t.c_attended || g.t.orders || g.t.spend).sort((a, b) => b.t.leads - a.t.leads || b.t.visits - a.t.visits);
@@ -697,8 +700,9 @@ function drawCut(list) {
     const cpl = t.leads && t.spend ? t.spend / t.leads : 0, cac = t.c_paid && t.spend ? t.spend / t.c_paid : 0;
     const romi = t.spend ? Math.round((t.c_revenue - t.spend) / t.spend * 100) + '%' : '—';
     const isTot = cls === 'tot';
-    const cn = cut === 'campaign' && !isTot ? campName(name) : '';
-    return `<tr class="${cls || ''}"><td class="nm" title="${esc(cn ? cn + ' · № ' + name : name)}">${cn ? esc(cn) + '<small>№ ' + esc(name) + '</small>' : esc(name)}</td><td>${nov && !isTot ? '—' : fmt(t.visits)}</td>
+    const cn = cut === 'campaign' && !isTot ? campName(name) || (name === '(не указан)' ? 'Без метки кампании' : '') : '';
+    if (cut === 'campaign' && isTot) name = 'Итого по рекламе';
+    return `<tr class="${cls || ''}"><td class="nm" title="${esc(cn && campName(name) ? cn + ' · № ' + name : cn || name)}">${cn ? esc(cn) + (campName(name) ? '<small>№ ' + esc(name) + '</small>' : '') : esc(name)}</td><td>${nov && !isTot ? '—' : fmt(t.visits)}</td>
       <td class="db">${isTot ? '' : `<span style="width:${Math.max(4, 70 * t.leads / maxL)}%"></span>`}<em>${fmt(t.leads)}</em></td>
       <td class="pc">${nov && !isTot ? '—' : pc(ratio(t.leads, t.visits))}</td>
       <td>${fmt(t.c_attended)} ${chip(t.c_attended, t.leads, 'attend')}</td>
@@ -731,7 +735,7 @@ function saveCsv(cols, list, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = name; a.click();
 }
 function exportCut() {   // таблица «Откуда приходят» в текущем разрезе, периоде и фильтрах
-  const list = filtered(); if (!list.length) return;
+  const list = cutRows(filtered()); if (!list.length) return;
   const g = group(list.map(r => cut === 'messenger' ? Object.assign({}, r, { messenger: r.messenger || '(не указан)' }) : r), cut)
     .filter(x => x.t.visits || x.t.leads || x.t.c_attended || x.t.orders || x.t.spend).sort((a, b) => b.t.leads - a.t.leads || b.t.visits - a.t.visits);
   const out = g.map(x => { const t = x.t; return { [cut]: x.key, name: cut === 'campaign' ? campName(x.key) : '', visits: t.visits, leads: t.leads, attended: t.c_attended, offer: t.c_offer || 0,
