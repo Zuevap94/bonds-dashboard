@@ -34,6 +34,7 @@ jobs:
           DIRECT_CAMPAIGNS: ${{ vars.DIRECT_CAMPAIGNS }}
           DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
           EXCLUDE_EMAILS: ${{ secrets.EXCLUDE_EMAILS }}
+          EXTRA_MEMBERS: ${{ secrets.EXTRA_MEMBERS }}
           DASHBOARD_TRIGGER_TOKEN: ${{ secrets.DASHBOARD_TRIGGER_TOKEN }}
         run: python update_dashboard.py
       - name: Опубликовать зашифрованные данные

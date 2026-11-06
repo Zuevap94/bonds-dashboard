@@ -179,6 +179,17 @@ def gc_members(env):
             if email not in members or rec['date'] < members[email]['date']:
                 members[email] = rec
         log('GetCourse группа', funnel, 'участников всего:', len(rows))
+    # регистрации, которых больше нет в группах GetCourse (профиль удалён при смене почты на уже занятую):
+    # EXTRA_MEMBERS = «email|дата|воронка|мессенджер|телефон» через «;» — в секретах, почты в репозиторий не кладём
+    extra = 0
+    for item in env.get('EXTRA_MEMBERS', '').split(';'):
+        p = [x.strip() for x in item.split('|')] + ['', '']
+        email = p[0].lower()
+        if not email or not p[1] or not p[2] or email in members or email in EXCLUDE_EMAILS: continue
+        members[email] = {'funnel': p[2], 'date': p[1], 'source': NA, 'medium': NA, 'campaign': NA,
+                          'messenger': norm(p[3]), 'phone': phone10(p[4]), 'bhid': '', 'name': ''}
+        extra += 1
+    if extra: log('Регистраций добавлено вручную:', extra)
     return members
 
 
