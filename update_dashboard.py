@@ -187,6 +187,9 @@ def gc_orders(env, members):
     out = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
     per_email = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
     rows = gc_export(env, 'deals', 'заказы', {'created_at[from]': START.isoformat()})
+    by_phone = defaultdict(list)  # заказ с опечаткой в почте (mail.tu вместо mail.ru) — GetCourse заводит нового пользователя; узнаём человека по телефону
+    for e, m in members.items():
+        if m.get('phone'): by_phone[m['phone']].append(e)
     n = 0
     for r in rows:
         if COURSE_MARK not in (r.get('Состав заказа') or ''): continue
@@ -194,6 +197,9 @@ def gc_orders(env, members):
         if email in EXCLUDE_EMAILS: continue
         status = r.get('Статус') or ''
         if status in ('Ложный', 'Отменен'): continue
+        if email not in members and len(by_phone.get(phone10(r.get('Телефон') or ''), [])) == 1:
+            email = by_phone[phone10(r.get('Телефон'))][0]
+            if email in EXCLUDE_EMAILS: continue
         m = members.get(email)
         if not m: continue  # купил не через автоворонку (живой эфир, другие источники) — в дашборд не берём
         funnel, src, med, camp, msg = m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA)
