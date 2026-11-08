@@ -611,6 +611,7 @@ function clickRow(c) {
   const where = [c.funnel !== '(не указан)' ? c.funnel : 'не нашли регистрацию', MSGN[c.messenger] || ''].filter(Boolean).join(' · ');
   const ct = [ph ? `<a href="tel:+${ph}">+${ph.replace(/^(\d)(\d{3})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3-$4-$5')}</a>` : '',
     ph ? `<a href="https://t.me/+${ph}" target="_blank" rel="noopener" title="Откроется, только если человек разрешил искать себя по номеру">Telegram по номеру</a>` : '',
+    ph ? `<a href="#" data-copy="+${ph}" title="У MAX нет ссылки на чат по номеру: номер скопируется — вставьте его в поиск MAX">MAX: скопировать номер</a>` : '',
     c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '',
     c.bhid ? `<small title="Найти в BotHelp → Подписчики">BotHelp: ${esc(c.bhid)}</small>` : ''].filter(Boolean).join('');
   return `<tr class="${c.order ? '' : 'todo'}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
@@ -623,6 +624,14 @@ function exportClicks() {
   const [from] = range();
   saveCsv(['date', 'slot', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'tariffs', 'minutes', 'order', 'bothelp'], out, 'nazhali-knopku-' + (from || 'vse') + '.csv');
 }
+
+root.addEventListener('click', e => {   // «MAX: скопировать номер»
+  const a = e.target.closest && e.target.closest('[data-copy]'); if (!a) return;
+  e.preventDefault();
+  const done = () => { const t = a.textContent; a.textContent = 'Скопировано ✓'; setTimeout(() => { a.textContent = t; }, 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(a.dataset.copy).then(done, () => window.prompt('Скопируйте номер', a.dataset.copy));
+  else window.prompt('Скопируйте номер', a.dataset.copy);
+});
 
 /* ---- подсказки при наведении (и по тапу на телефоне) ---- */
 function tipMove(e) {
