@@ -186,9 +186,14 @@ def gc_members(env):
     for item in env.get('EXTRA_MEMBERS', '').split(';'):
         p = [x.strip() for x in item.split('|')] + [''] * 5
         email = p[0].lower()
-        if not email or not p[1] or not p[2] or email in members or email in EXCLUDE_EMAILS: continue
-        members[email] = {'funnel': p[2], 'date': p[1], 'source': norm(p[5]), 'medium': norm(p[6]), 'campaign': norm(p[7]),
-                          'messenger': norm(p[3]), 'phone': phone10(p[4]), 'bhid': '', 'name': ''}
+        if not email or not p[1] or not p[2] or email in EXCLUDE_EMAILS: continue
+        rec = {'funnel': p[2], 'date': p[1], 'source': norm(p[5]), 'medium': norm(p[6]), 'campaign': norm(p[7]),
+               'messenger': norm(p[3]), 'phone': phone10(p[4]), 'bhid': '', 'name': ''}
+        old = members.get(email)
+        if old and old['date'] < rec['date']: continue  # в группе раньше заявки — GetCourse главнее
+        if old:  # добавили в группу позже вручную: дата и метки — из заявки, остальное — из GetCourse
+            rec.update({k: v for k, v in old.items() if k in ('bhid', 'name') or (k in ('phone', 'messenger') and v and v != NA and rec[k] in ('', NA))})
+        members[email] = rec
         extra += 1
     if extra: log('Регистраций добавлено вручную:', extra)
     return members
