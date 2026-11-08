@@ -268,6 +268,7 @@ def bizon(env, members):
         if len(lst) < 100: break
         skip += 100
     seen = {}  # (email, date) → {'mins', 'slot', 'vi' — интервалы самого долгого захода, 'clicked'}
+    who = defaultdict(lambda: {'tariffs': set(), 'first': 0, 'slot': '', 'name': '', 'phone': '', 'bhid': ''})  # кто нажал кнопку — для списка «написать»
     match = viewer_matcher(members)
     for rep in reports:
         wid = rep['webinarId']
@@ -290,6 +291,13 @@ def bizon(env, members):
                 clicked = bool(u.get('buttons')) or bool(seen.get(k, {}).get('clicked'))
                 if k not in seen or mins > seen[k]['mins']: seen[k] = {'mins': mins, 'slot': slot, 'vi': u.get('vi') or []}
                 seen[k]['clicked'] = clicked
+                w = who[k]
+                w['name'] = w['name'] or (u.get('username') or '').strip()
+                w['phone'] = w['phone'] or phone10(u.get('phone'))
+                w['bhid'] = w['bhid'] or (urllib.parse.parse_qs(urllib.parse.urlparse(u.get('url') or '').query).get('bhid') or [''])[0].strip()
+                for b in u.get('buttons') or []:
+                    if b.get('id'): w['tariffs'].add(b['id'])
+                    if b.get('time') and (not w['first'] or b['time'] < w['first']): w['first'], w['slot'] = b['time'], slot
             if len(users) < limit: break
             skip += limit
     out = defaultdict(lambda: dict({'attended': 0, 'attended30': 0, 'offer': 0, 'clicked': 0, 'att_min': 0.0, 'ret': [0] * RET_MIN}, **{f: 0 for f in SLOT_FIELDS}))
@@ -315,8 +323,18 @@ def bizon(env, members):
         if mins >= 30: pe['attended30'] = 1
         if saw_offer: pe['offer'] = 1
         if v['clicked']: pe['clicked'] = 1
-    log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown))
-    return out, per_email, len(unknown)
+    clickers = []  # уникальные нажавшие кнопку тарифа: человек × день эфира
+    for (email, wdate), v in seen.items():
+        if not v['clicked'] or email in EXCLUDE_EMAILS: continue
+        w, m = who[(email, wdate)], members.get(email) or {}
+        t = dt.datetime.fromtimestamp(w['first'] / 1000, MSK).strftime('%H:%M') if w['first'] else ''
+        clickers.append({'date': wdate, 'slot': w['slot'] or v['slot'], 'time': t, 'name': w['name'] or (m.get('name') or '').title(),
+                         'phone': w['phone'] or m.get('phone', ''), 'email': '' if email.startswith('bizon:') else email,
+                         'funnel': m.get('funnel', NA), 'source': m.get('source', NA), 'messenger': m.get('messenger', NA),
+                         'tariffs': sorted(x.replace('Тариф ', '').strip('"«»') for x in w['tariffs']), 'mins': round(v['mins']),
+                         'bhid': w['bhid'] or m.get('bhid', '')})
+    log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown), 'нажали кнопку:', len(clickers))
+    return out, per_email, len(unknown), clickers
 
 
 # ---------------------------------------------------------------- расход
@@ -384,7 +402,10 @@ def build(env):
     parts = {'metrika': metrika(env)}
     members = gc_members(env)
     orders, paid_by_email = gc_orders(env, members)
-    attendance, att_by_email, unknown_viewers = bizon(env, members)
+    attendance, att_by_email, unknown_viewers, clickers = bizon(env, members)
+    for c in clickers:  # что стало с нажавшим: оформил ли заказ, оплатил ли (заказы курса из GetCourse)
+        pm = paid_by_email.get(c['email']) or {}
+        c['order'] = 'paid' if pm.get('paid') else 'order' if pm.get('orders') else ''
     cost, campaigns = spend(), {}
     try:
         dcost, campaigns = direct(env)
@@ -414,6 +435,7 @@ def build(env):
         if d < START.isoformat() or d > today: continue
         table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, messenger=msg, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
     meta = {'members': len(members), 'unknown_viewers': unknown_viewers, 'campaigns': campaigns,
+            'clickers': sorted(clickers, key=lambda c: (c['date'], c['time']), reverse=True),  # имена и контакты — только в зашифрованных данных
             'next_run': 'автоматически 5 раз в день или кнопкой «Обновить»', 'excluded': len(EXCLUDE_EMAILS)}
     return table, members, meta
 
