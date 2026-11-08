@@ -268,7 +268,7 @@ def bizon(env, members):
         if len(lst) < 100: break
         skip += 100
     seen = {}  # (email, date) → {'mins', 'slot', 'vi' — интервалы самого долгого захода, 'clicked'}
-    who = defaultdict(lambda: {'tariffs': set(), 'first': 0, 'slot': '', 'name': '', 'phone': '', 'bhid': ''})  # кто нажал кнопку — для списка «написать»
+    who = defaultdict(lambda: {'tariffs': set(), 'first': 0, 'slot': '', 'name': '', 'phone': '', 'bhid': '', 'msgs': set()})  # контакты, кнопки и чат — для списка «написать»
     match = viewer_matcher(members)
     for rep in reports:
         wid = rep['webinarId']
@@ -284,6 +284,13 @@ def bizon(env, members):
                 try: inner = json.loads(inner)
                 except Exception: inner = {}
             users = (inner or {}).get('usersMeta') or {}
+            if skip == 0:  # чат эфира: {chatUserId: [тексты]}, время — секунды от начала эфира
+                chat, chat_ts = rr.get('messages') or {}, rr.get('messagesTS') or {}
+                try:
+                    if isinstance(chat, str): chat = json.loads(chat or '{}')
+                    if isinstance(chat_ts, str): chat_ts = json.loads(chat_ts or '{}')
+                except Exception: chat, chat_ts = {}, {}
+                if not isinstance(chat, dict) or not isinstance(chat_ts, dict): chat, chat_ts = {}, {}
             for u in users.values():
                 email = match(u)
                 mins = sum(max(0, (iv.get('e', 0) - iv.get('s', 0))) for iv in (u.get('vi') or [])) / 60.0
@@ -295,6 +302,10 @@ def bizon(env, members):
                 w['name'] = w['name'] or (u.get('username') or '').strip()
                 w['phone'] = w['phone'] or phone10(u.get('phone'))
                 w['bhid'] = w['bhid'] or (urllib.parse.parse_qs(urllib.parse.urlparse(u.get('url') or '').query).get('bhid') or [''])[0].strip()
+                cid = u.get('chatUserId')
+                for i, text in enumerate(chat.get(cid) or []):
+                    ts = (chat_ts.get(cid) or [])
+                    w['msgs'].add((ts[i] if i < len(ts) else 0, str(text).strip()))
                 for b in u.get('buttons') or []:
                     if b.get('id'): w['tariffs'].add(b['id'])
                     if b.get('time') and (not w['first'] or b['time'] < w['first']): w['first'], w['slot'] = b['time'], slot
@@ -323,18 +334,28 @@ def bizon(env, members):
         if mins >= 30: pe['attended30'] = 1
         if saw_offer: pe['offer'] = 1
         if v['clicked']: pe['clicked'] = 1
-    clickers = []  # уникальные нажавшие кнопку тарифа: человек × день эфира
+    def talk(w):  # что человек писал в чат: без «+», «1», «да» — только слова и вопросы; [минута эфира, текст]
+        res, dup = [], set()
+        for ts, text in sorted(w['msgs']):
+            if (len(re.findall(r'[A-Za-zА-Яа-яЁё]', text)) >= 4 or '?' in text) and text not in dup:
+                dup.add(text); res.append([int(ts // 60), text[:500]])
+        return res
+    clickers, chatters = [], []  # нажали кнопку тарифа / не нажали, но писали в чат: человек × день эфира
     for (email, wdate), v in seen.items():
-        if not v['clicked'] or email in EXCLUDE_EMAILS: continue
+        if email in EXCLUDE_EMAILS: continue
         w, m = who[(email, wdate)], members.get(email) or {}
+        said = talk(w)
+        if not v['clicked'] and not said: continue
         t = dt.datetime.fromtimestamp(w['first'] / 1000, MSK).strftime('%H:%M') if w['first'] else ''
-        clickers.append({'date': wdate, 'slot': w['slot'] or v['slot'], 'time': t, 'name': w['name'] or (m.get('name') or '').title(),
-                         'phone': w['phone'] or m.get('phone', ''), 'email': '' if email.startswith('bizon:') else email,
-                         'funnel': m.get('funnel', NA), 'source': m.get('source', NA), 'messenger': m.get('messenger', NA),
-                         'tariffs': sorted(x.replace('Тариф ', '').strip('"«»') for x in w['tariffs']), 'mins': round(v['mins']),
-                         'bhid': w['bhid'] or m.get('bhid', '')})
-    log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown), 'нажали кнопку:', len(clickers))
-    return out, per_email, len(unknown), clickers
+        (clickers if v['clicked'] else chatters).append({
+            'date': wdate, 'slot': w['slot'] or v['slot'], 'time': t, 'name': w['name'] or (m.get('name') or '').title(),
+            'phone': w['phone'] or m.get('phone', ''), 'email': '' if email.startswith('bizon:') else email,
+            'funnel': m.get('funnel', NA), 'source': m.get('source', NA), 'messenger': m.get('messenger', NA),
+            'tariffs': sorted(x.replace('Тариф ', '').strip('"«»') for x in w['tariffs']), 'mins': round(v['mins']),
+            'bhid': w['bhid'] or m.get('bhid', ''), 'msgs': said, 'n_msgs': len(w['msgs'])})
+    log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown),
+        'нажали кнопку:', len(clickers), 'писали в чат без кнопки:', len(chatters))
+    return out, per_email, len(unknown), clickers, chatters
 
 
 # ---------------------------------------------------------------- расход
@@ -402,8 +423,8 @@ def build(env):
     parts = {'metrika': metrika(env)}
     members = gc_members(env)
     orders, paid_by_email = gc_orders(env, members)
-    attendance, att_by_email, unknown_viewers, clickers = bizon(env, members)
-    for c in clickers:  # что стало с нажавшим: оформил ли заказ, оплатил ли (заказы курса из GetCourse)
+    attendance, att_by_email, unknown_viewers, clickers, chatters = bizon(env, members)
+    for c in clickers + chatters:  # что стало с нажавшим: оформил ли заказ, оплатил ли (заказы курса из GetCourse)
         pm = paid_by_email.get(c['email']) or {}
         c['order'] = 'paid' if pm.get('paid') else 'order' if pm.get('orders') else ''
     cost, campaigns = spend(), {}
@@ -435,7 +456,8 @@ def build(env):
         if d < START.isoformat() or d > today: continue
         table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, messenger=msg, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
     meta = {'members': len(members), 'unknown_viewers': unknown_viewers, 'campaigns': campaigns,
-            'clickers': sorted(clickers, key=lambda c: (c['date'], c['time']), reverse=True),  # имена и контакты — только в зашифрованных данных
+            'clickers': sorted(clickers, key=lambda c: (c['date'], c['time']), reverse=True),  # имена, контакты и чат — только в зашифрованных данных
+            'chatters': sorted(chatters, key=lambda c: c['date'], reverse=True),
             'next_run': 'автоматически 5 раз в день или кнопкой «Обновить»', 'excluded': len(EXCLUDE_EMAILS)}
     return table, members, meta
 

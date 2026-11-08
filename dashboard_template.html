@@ -63,6 +63,13 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd table.kl .ct{display:flex;flex-direction:column;gap:2px;min-width:150px}
 .zd table.kl tr.todo td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .zd .chip.warn{background:var(--amber-lt);color:var(--amber)}
+.zd table.kl tr.has-said td{border-bottom:0}
+.zd table.kl tr.said td{padding-top:0}
+.zd table.kl tr.todo+tr.said td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.zd .say{background:var(--soft);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text);line-height:1.4}
+.zd .say p{margin:0}
+.zd .say p b{color:var(--mute);font-weight:700;font-size:11.5px;margin-right:6px;white-space:nowrap}
+.zd .say small{color:var(--faint);font-size:11.5px}
 .zd .kstat{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text)}
 .zd .kstat b{font-weight:800}
 @media(max-width:760px){.zd .bar{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;padding-bottom:0}.zd .filters select{flex:1 1 40%}.zd .seg{flex:1 1 100%}.zd .seg button{flex:1;padding:6px 4px}.zd .filters .grow{display:none}.zd .filters>button{flex:1}}
@@ -271,7 +278,7 @@ const LAYOUT = `
 <header>
   <h1>Воронка «Облигации 2026»</h1>
   <div class="sub" id="sub"></div>
-  <div class="views" id="views" role="tablist"><button data-v="main" class="on" role="tab">Аналитика</button><button data-v="click" role="tab" title="Нажатия за выбранный период">Нажали кнопку тарифа<b id="clickN"></b></button></div>
+  <div class="views" id="views" role="tablist"><button data-v="main" class="on" role="tab">Аналитика</button><button data-v="click" role="tab" title="Нажали кнопку тарифа или писали в чат — за выбранный период">Кому написать<b id="clickN"></b></button></div>
 </header>
 <div class="bar"><div class="filters">
   <select id="fFunnel" aria-label="Воронка"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
@@ -288,6 +295,8 @@ const LAYOUT = `
 <div id="vClick" hidden>
 <div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Учитываются фильтры воронки, мессенджера и период</div></div>
 <div class="card"><div class="head"><div class="kstat" id="clickStat"></div><button class="csvbtn" id="clickCsv" title="Скачать список за период">CSV</button></div><div class="tblwrap" id="clickList"></div></div>
+<div class="sec"><h2>Писали в чат, но кнопку не нажали</h2><div class="h2sub">Зрители, которые задавали вопросы или писали что-то по делу (без «+» и «да»). Хороший повод написать: видно, что их интересовало</div></div>
+<div class="card"><div class="tblwrap" id="chatList"></div></div>
 </div>
 <div id="vMain">
 <div id="warn" class="note" hidden></div>
@@ -788,9 +797,9 @@ function showView(v, quiet) {
   try { localStorage.setItem('zd_view', v); } catch (e) {}
   if (!quiet) window.scrollTo({ top: Math.min(window.scrollY, root.offsetTop) });
 }
-function clickList() {
+function clickList(key) {
   const [from] = range(), f = $('#fFunnel').value, g = $('#fMsg').value, s = $('#fSource').value;
-  return ((DATA && DATA.meta && DATA.meta.clickers) || []).filter(c => (!from || c.date >= from) && (!f || c.funnel === f)
+  return ((DATA && DATA.meta && DATA.meta[key || 'clickers']) || []).filter(c => (!from || c.date >= from) && (!f || c.funnel === f)
     && (!g || (c.messenger || '(не указан)') === g) && (!s || c.source === s));
 }
 const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -803,10 +812,15 @@ function drawClicks() {
   if (!list.length) { $('#clickStat').innerHTML = ''; $('#clickList').innerHTML = '<div class="empty">За выбранный период никто не нажимал кнопку тарифа</div>'; return; }
   const cnt = k => list.filter(c => c.order === k).length;
   $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>`;
+  $('#clickList').innerHTML = peopleHtml(list);
+  const chat = clickList('chatters');
+  $('#chatList').innerHTML = chat.length ? peopleHtml(chat) : '<div class="empty">За выбранный период никто не писал в чат по делу</div>';
+}
+function peopleHtml(list) {   // люди по эфирам: сверху свежие, внутри эфира — сначала без заказа
   const groups = {};
   list.forEach(c => { const k = c.date + '|' + c.slot; (groups[k] = groups[k] || []).push(c); });
   const keys = Object.keys(groups).sort().reverse();
-  $('#clickList').innerHTML = keys.map(k => {
+  return keys.map(k => {
     const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (!!a.order - !!b.order) || (a.time < b.time ? -1 : 1));
     const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order).length;
     return `<div class="kday"><h3>${ddmm(d)}, ${wd} <span>· эфир ${slot}:00</span></h3><small>${ppl(rows.length)}${n ? ' · без заказа ' + n : ''}</small></div>
@@ -821,15 +835,17 @@ function clickRow(c) {
     ph ? `<a href="#" data-copy="+${ph}" title="У MAX нет ссылки на чат по номеру: номер скопируется — вставьте его в поиск MAX">MAX: скопировать номер</a>` : '',
     c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '',
     c.bhid ? `<small title="Найти в BotHelp → Подписчики">BotHelp: ${esc(c.bhid)}</small>` : ''].filter(Boolean).join('');
-  return `<tr class="${c.order ? '' : 'todo'}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
-    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span></td></tr>`;
+  const said = (c.msgs || []).length ? `<tr class="said"><td colspan="6"><div class="say">${c.msgs.map(m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`).join('')}${c.n_msgs > c.msgs.length ? `<small>и ещё ${c.n_msgs - c.msgs.length} коротких реакций (+, цифры, «да»)</small>` : ''}</div></td></tr>` : '';
+  return `<tr class="${c.order ? '' : 'todo'}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
+    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span></td></tr>` + said;
 }
 function exportClicks() {
   const list = clickList(); if (!list.length) return;
   const out = list.map(c => ({ date: c.date, slot: c.slot + ':00', time: c.time, name: c.name, phone: c.phone ? '+7' + c.phone : '', email: c.email,
-    messenger: MSGN[c.messenger] || '', funnel: c.funnel, tariffs: (c.tariffs || []).join(', '), minutes: c.mins, order: ORDER[c.order || ''][1], bothelp: c.bhid }));
+    messenger: MSGN[c.messenger] || '', funnel: c.funnel, tariffs: (c.tariffs || []).join(', '), minutes: c.mins, order: ORDER[c.order || ''][1], bothelp: c.bhid,
+    chat: (c.msgs || []).map(m => m[0] + ' мин: ' + m[1]).join(' | ') }));
   const [from] = range();
-  saveCsv(['date', 'slot', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'tariffs', 'minutes', 'order', 'bothelp'], out, 'nazhali-knopku-' + (from || 'vse') + '.csv');
+  saveCsv(['date', 'slot', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'tariffs', 'minutes', 'order', 'bothelp', 'chat'], out, 'nazhali-knopku-' + (from || 'vse') + '.csv');
 }
 
 root.addEventListener('click', e => {   // «MAX: скопировать номер»
