@@ -69,7 +69,9 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .say{background:var(--soft);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text);line-height:1.4}
 .zd .say p{margin:0}
 .zd .say p b{color:var(--mute);font-weight:700;font-size:11.5px;margin-right:6px;white-space:nowrap}
-.zd .say small{color:var(--faint);font-size:11.5px}
+.zd .say details summary{cursor:pointer;color:var(--green);font-weight:700;font-size:12px}
+.zd .say details[open] summary{margin-bottom:4px}
+.zd .say details p{color:var(--mute)}
 .zd .kstat{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text)}
 .zd .kstat b{font-weight:800}
 @media(max-width:760px){.zd .bar{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;padding-bottom:0}.zd .filters select{flex:1 1 40%}.zd .seg{flex:1 1 100%}.zd .seg button{flex:1;padding:6px 4px}.zd .filters .grow{display:none}.zd .filters>button{flex:1}}
@@ -835,7 +837,9 @@ function clickRow(c) {
     ph ? `<a href="#" data-copy="+${ph}" title="У MAX нет ссылки на чат по номеру: номер скопируется — вставьте его в поиск MAX">MAX: скопировать номер</a>` : '',
     c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '',
     c.bhid ? `<small title="Найти в BotHelp → Подписчики">BotHelp: ${esc(c.bhid)}</small>` : ''].filter(Boolean).join('');
-  const said = (c.msgs || []).length ? `<tr class="said"><td colspan="6"><div class="say">${c.msgs.map(m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`).join('')}${c.n_msgs > c.msgs.length ? `<small>и ещё ${c.n_msgs - c.msgs.length} коротких реакций (+, цифры, «да»)</small>` : ''}</div></td></tr>` : '';
+  const all = c.msgs || [], main = all.filter(m => m[2] !== 0), line = m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`;
+  const more = all.length > main.length ? `<details><summary>Вся переписка в чате — ${all.length} ${plural(all.length, 'сообщение', 'сообщения', 'сообщений')}</summary>${all.map(line).join('')}</details>` : '';
+  const said = all.length ? `<tr class="said"><td colspan="6"><div class="say">${main.map(line).join('')}${more}</div></td></tr>` : '';
   return `<tr class="${c.order ? '' : 'todo'}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
     <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span></td></tr>` + said;
 }

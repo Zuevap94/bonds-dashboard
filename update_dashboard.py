@@ -335,25 +335,22 @@ def bizon(env, members):
         if mins >= 30: pe['attended30'] = 1
         if saw_offer: pe['offer'] = 1
         if v['clicked']: pe['clicked'] = 1
-    def talk(w):  # что человек писал в чат: без «+», «1», «да» — только слова и вопросы; [минута эфира, текст]
-        res, dup = [], set()
-        for ts, text in sorted(w['msgs']):
-            if (len(re.findall(r'[A-Za-zА-Яа-яЁё]', text)) >= 4 or '?' in text) and text not in dup:
-                dup.add(text); res.append([int(ts // 60), text[:500]])
-        return res
+    def talk(w):  # всё, что человек писал в чат: [минута эфира, текст, 1 — по делу (слова, вопросы) / 0 — реакция «+», «1», «да»]
+        return [[int(ts // 60), text[:500], int(len(re.findall(r'[A-Za-zА-Яа-яЁё]', text)) >= 4 or '?' in text)]
+                for ts, text in sorted(w['msgs']) if text]
     clickers, chatters = [], []  # нажали кнопку тарифа / не нажали, но писали в чат: человек × день эфира
     for (email, wdate), v in seen.items():
         if email in EXCLUDE_EMAILS: continue
         w, m = who[(email, wdate)], members.get(email) or {}
         said = talk(w)
-        if not v['clicked'] and not said: continue
+        if not v['clicked'] and not any(m[2] for m in said): continue
         t = dt.datetime.fromtimestamp(w['first'] / 1000, MSK).strftime('%H:%M') if w['first'] else ''
         (clickers if v['clicked'] else chatters).append({
             'date': wdate, 'slot': w['slot'] or v['slot'], 'time': t, 'name': w['name'] or (m.get('name') or '').title(),
             'phone': w['phone'] or m.get('phone', ''), 'email': '' if email.startswith('bizon:') else email,
             'funnel': m.get('funnel', NA), 'source': m.get('source', NA), 'messenger': m.get('messenger', NA),
             'tariffs': sorted(x.replace('Тариф ', '').strip('"«»') for x in w['tariffs']), 'mins': round(v['mins']),
-            'bhid': w['bhid'] or m.get('bhid', ''), 'msgs': said, 'n_msgs': len(w['msgs'])})
+            'bhid': w['bhid'] or m.get('bhid', ''), 'msgs': said})
     log('Бизон отчётов:', len(reports), 'зрителей (чел.×день):', len(seen), 'без регистрации в GC:', len(unknown),
         'нажали кнопку:', len(clickers), 'писали в чат без кнопки:', len(chatters))
     return out, per_email, len(unknown), clickers, chatters
