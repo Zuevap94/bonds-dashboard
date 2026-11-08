@@ -42,6 +42,29 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .cpop .cb .ok{background:var(--ink);border-color:var(--ink);color:#fff}
 .zd .csvbtn{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;cursor:pointer;color:var(--text)}
 .zd td.nm small{display:block;color:var(--faint);font-size:11px;font-weight:600}
+/* вкладки страницы: аналитика / нажали кнопку */
+.zd .views{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-top:14px}
+.zd .views button{font:inherit;font-weight:700;font-size:13.5px;border:0;background:none;border-radius:9px;padding:8px 14px;cursor:pointer;color:var(--text);min-height:36px}
+.zd .views button.on{background:var(--ink);color:#fff}
+.zd .views b{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--red);color:#fff;font-size:11.5px;line-height:19px;text-align:center}
+.zd .views b:empty{display:none}
+/* нажали кнопку тарифа */
+.zd .kday{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin:22px 0 4px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
+.zd .kday:first-child{margin-top:0}
+.zd .kday h3 span{color:var(--mute);font-weight:700}
+.zd .kday small{color:var(--mute);font-size:12.5px;font-weight:600}
+.zd table.kl{table-layout:fixed;min-width:680px}
+.zd table.kl td{vertical-align:top;white-space:normal;text-align:left;overflow-wrap:anywhere}
+.zd table.kl th{text-align:left}
+.zd table.kl td.who{font-weight:800;min-width:130px}
+.zd table.kl td.who small,.zd table.kl td small{display:block;font-weight:600;color:var(--mute);font-size:11.5px;margin-top:2px}
+.zd table.kl a{color:var(--green);font-weight:700;text-decoration:none;white-space:nowrap}
+.zd table.kl a:hover{text-decoration:underline}
+.zd table.kl .ct{display:flex;flex-direction:column;gap:2px;min-width:150px}
+.zd table.kl tr.todo td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.zd .chip.warn{background:var(--amber-lt);color:var(--amber)}
+.zd .kstat{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text)}
+.zd .kstat b{font-weight:800}
 @media(max-width:760px){.zd .bar{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;padding-bottom:0}.zd .filters select{flex:1 1 40%}.zd .seg{flex:1 1 100%}.zd .seg button{flex:1;padding:6px 4px}.zd .filters .grow{display:none}.zd .filters>button{flex:1}}
 .zd #refresh{background:var(--green);border-color:var(--green);color:#fff}
 .zd #refresh:disabled{opacity:.75;cursor:progress}
@@ -248,6 +271,7 @@ const LAYOUT = `
 <header>
   <h1>Воронка «Облигации 2026»</h1>
   <div class="sub" id="sub"></div>
+  <div class="views" id="views" role="tablist"><button data-v="main" class="on" role="tab">Аналитика</button><button data-v="click" role="tab" title="Нажатия за выбранный период">Нажали кнопку тарифа<b id="clickN"></b></button></div>
 </header>
 <div class="bar"><div class="filters">
   <select id="fFunnel" aria-label="Воронка"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
@@ -261,6 +285,11 @@ const LAYOUT = `
   <button id="refresh" title="Собрать свежие данные прямо сейчас (несколько минут)">↻ Обновить</button>
   <div class="cpop" id="cpop" hidden></div>
 </div></div>
+<div id="vClick" hidden>
+<div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Учитываются фильтры воронки, мессенджера и период</div></div>
+<div class="card"><div class="head"><div class="kstat" id="clickStat"></div><button class="csvbtn" id="clickCsv" title="Скачать список за период">CSV</button></div><div class="tblwrap" id="clickList"></div></div>
+</div>
+<div id="vMain">
 <div id="warn" class="note" hidden></div>
 <div class="hero" id="hero"></div>
 
@@ -304,6 +333,7 @@ const LAYOUT = `
 <dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама» или «…органика». Тестовые адреса исключены.</dd>
 <dt>Пришли, 30+ мин, дошли до оффера</dt><dd>Бизон: зрители комнат bonds, bonds-10, bonds-15, bonds-17. «Дошли до оффера» — были в комнате в ${OFFER_AT} или позже, когда на эфире уже кнопки тарифов. Человек считается один раз в день.</dd>
 <dt>Нажали кнопку тарифа</dt><dd>Бизон фиксирует нажатия на кнопки тарифов во время эфира.</dd>
+<dt>Вкладка «Нажали кнопку тарифа»</dt><dd>Каждый, кто нажал кнопку тарифа в комнате Бизона, — один раз за день эфира, даже если нажимал несколько раз. Имя и телефон — из Бизона, почта и мессенджер — из регистрации в GetCourse. «Заказ» — есть ли у человека заказ курса в GetCourse. Список виден только после ввода пароля.</dd>
 <dt>Кривая удержания</dt><dd>Для каждой минуты эфира — сколько пришедших были в комнате хотя бы часть этой минуты. Опоздавшие добавляются, ушедшие вычитаются, поэтому в начале кривая может расти.</dd>
 <dt>Когорта</dt><dd>В воронке шаги после регистрации считаются по людям, зарегистрировавшимся за период: что с ними стало. Поэтому по свежим регистрациям цифры ещё дорастут.</dd>
 <dt>Заказы и оплаты</dt><dd>GetCourse: заказы тарифов «Облигации: пошаговая сборка портфеля» от людей из групп вебинара. Оплата — «Завершён» или «Частично оплачен».</dd>
@@ -315,6 +345,7 @@ const LAYOUT = `
 <dt>Сравнение</dt><dd>Стрелки — изменение к предыдущему периоду той же длины.</dd>
 </dl></div></details>
 <div class="quality" id="quality"></div>
+</div>
 <div class="tip" id="tip"></div>`;
 
 function init(data) {
@@ -331,6 +362,10 @@ function init(data) {
   root.querySelectorAll('#cuts button[data-c]').forEach(b => b.addEventListener('click', () => { root.querySelectorAll('#cuts button[data-c]').forEach(x => x.classList.remove('on')); b.classList.add('on'); cut = b.dataset.c; draw(); }));
   $('#csv').addEventListener('click', exportCsv);
   $('#cutCsv').addEventListener('click', exportCut);
+  $('#clickCsv').addEventListener('click', exportClicks);
+  root.querySelectorAll('#views button').forEach(b => b.addEventListener('click', () => showView(b.dataset.v)));
+  let v0 = 'main'; try { v0 = localStorage.getItem('zd_view') || 'main'; } catch (e) {}
+  showView(v0, true);
   setupCamps();
   $('#refresh').addEventListener('click', refresh);
   draw();
@@ -430,7 +465,7 @@ function draw() {
   const bn = bottleneck(t);
   drawHero(t, p); drawInsights(t, list, bn); drawFunnel(t, noVisits, bn); drawBench(t); drawEcon(t, p);
   const days = dayList(list); chart(days); chart2(days);
-  drawRet(list, t); drawSlots(t); drawMsgs(list); drawCut(list); drawDayTable(days); drawQuality();
+  drawRet(list, t); drawSlots(t); drawMsgs(list); drawCut(list); drawDayTable(days); drawQuality(); drawClicks();
 }
 
 /* ---- деньги ---- */
@@ -743,6 +778,57 @@ function exportCut() {   // таблица «Откуда приходят» в 
     romi: t.spend ? Math.round((t.c_revenue - t.spend) / t.spend * 100) + '%' : '' }; });
   const [from] = range();
   saveCsv([cut, ...(cut === 'campaign' ? ['name'] : []), 'visits', 'leads', 'attended', 'offer', 'paid', 'revenue', 'spend', 'cpl', 'cac', 'romi'], out, 'razrez-' + cut + '-' + (from || 'vse') + '.csv');
+}
+
+/* ---- вкладка «Нажали кнопку тарифа»: список людей из отчётов Бизона, чтобы им написать ---- */
+function showView(v, quiet) {
+  if (v !== 'click') v = 'main';
+  root.querySelectorAll('#views button').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $('#vMain').hidden = v !== 'main'; $('#vClick').hidden = v !== 'click';
+  try { localStorage.setItem('zd_view', v); } catch (e) {}
+  if (!quiet) window.scrollTo({ top: Math.min(window.scrollY, root.offsetTop) });
+}
+function clickList() {
+  const [from] = range(), f = $('#fFunnel').value, g = $('#fMsg').value, s = $('#fSource').value;
+  return ((DATA && DATA.meta && DATA.meta.clickers) || []).filter(c => (!from || c.date >= from) && (!f || c.funnel === f)
+    && (!g || (c.messenger || '(не указан)') === g) && (!s || c.source === s));
+}
+const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const ORDER = { paid: ['ok', 'Оплатил'], order: ['warn', 'Оформил заказ'], '': ['bad', 'Нет заказа'] };
+const MSGN = { telegram: 'Telegram', max: 'MAX' };
+function drawClicks() {
+  const list = clickList(), todo = list.filter(c => !c.order).length;
+  $('#clickN').textContent = todo ? String(todo) : '';
+  $('#clickN').title = todo ? todo + ' без заказа' : '';
+  if (!list.length) { $('#clickStat').innerHTML = ''; $('#clickList').innerHTML = '<div class="empty">За выбранный период никто не нажимал кнопку тарифа</div>'; return; }
+  const cnt = k => list.filter(c => c.order === k).length;
+  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>`;
+  const groups = {};
+  list.forEach(c => { const k = c.date + '|' + c.slot; (groups[k] = groups[k] || []).push(c); });
+  const keys = Object.keys(groups).sort().reverse();
+  $('#clickList').innerHTML = keys.map(k => {
+    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (!!a.order - !!b.order) || (a.time < b.time ? -1 : 1));
+    const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order).length;
+    return `<div class="kday"><h3>${ddmm(d)}, ${wd} <span>· эфир ${slot}:00</span></h3><small>${ppl(rows.length)}${n ? ' · без заказа ' + n : ''}</small></div>
+      <table class="kl"><colgroup><col style="width:22%"><col style="width:27%"><col style="width:19%"><col style="width:9%"><col style="width:10%"><col style="width:13%"></colgroup><tr><th>Кто</th><th>Связаться</th><th>Тариф</th><th>Нажал</th><th>Смотрел</th><th>Заказ</th></tr>${rows.map(clickRow).join('')}</table>`;
+  }).join('');
+}
+function clickRow(c) {
+  const ph = c.phone ? '7' + c.phone : '', o = ORDER[c.order || ''];
+  const where = [c.funnel !== '(не указан)' ? c.funnel : 'не нашли регистрацию', MSGN[c.messenger] || ''].filter(Boolean).join(' · ');
+  const ct = [ph ? `<a href="tel:+${ph}">+${ph.replace(/^(\d)(\d{3})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3-$4-$5')}</a>` : '',
+    ph ? `<a href="https://t.me/+${ph}" target="_blank" rel="noopener" title="Откроется, только если человек разрешил искать себя по номеру">Telegram по номеру</a>` : '',
+    c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '',
+    c.bhid ? `<small title="Найти в BotHelp → Подписчики">BotHelp: ${esc(c.bhid)}</small>` : ''].filter(Boolean).join('');
+  return `<tr class="${c.order ? '' : 'todo'}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
+    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span></td></tr>`;
+}
+function exportClicks() {
+  const list = clickList(); if (!list.length) return;
+  const out = list.map(c => ({ date: c.date, slot: c.slot + ':00', time: c.time, name: c.name, phone: c.phone ? '+7' + c.phone : '', email: c.email,
+    messenger: MSGN[c.messenger] || '', funnel: c.funnel, tariffs: (c.tariffs || []).join(', '), minutes: c.mins, order: ORDER[c.order || ''][1], bothelp: c.bhid }));
+  const [from] = range();
+  saveCsv(['date', 'slot', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'tariffs', 'minutes', 'order', 'bothelp'], out, 'nazhali-knopku-' + (from || 'vse') + '.csv');
 }
 
 /* ---- подсказки при наведении (и по тапу на телефоне) ---- */
