@@ -297,7 +297,7 @@ const LAYOUT = `
 <div id="vClick" hidden>
 <div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Учитываются фильтры воронки, мессенджера и период</div></div>
 <div class="card"><div class="head"><div class="kstat" id="clickStat"></div><button class="csvbtn" id="clickCsv" title="Скачать список за период">CSV</button></div><div class="tblwrap" id="clickList"></div></div>
-<div class="sec"><h2>Писали в чат, но кнопку не нажали</h2><div class="h2sub">Зрители, которые задавали вопросы или писали что-то по делу (без «+» и «да»). Хороший повод написать: видно, что их интересовало</div></div>
+<div class="sec"><h2>Писали в чат, но кнопку не нажали</h2><div class="h2sub">Все зрители, которые хоть что-то писали в чат, со всех эфиров. В каждом эфире сверху — те, кто писал по делу, ниже — кто отвечал только «+» и цифрами</div></div>
 <div class="card"><div class="tblwrap" id="chatList"></div></div>
 </div>
 <div id="vMain">
@@ -816,14 +816,15 @@ function drawClicks() {
   $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>`;
   $('#clickList').innerHTML = peopleHtml(list);
   const chat = clickList('chatters');
-  $('#chatList').innerHTML = chat.length ? peopleHtml(chat) : '<div class="empty">За выбранный период никто не писал в чат по делу</div>';
+  $('#chatList').innerHTML = chat.length ? peopleHtml(chat) : '<div class="empty">За выбранный период никто не писал в чат</div>';
 }
+const talked = c => (c.msgs || []).some(m => m[2] !== 0) ? 1 : 0;   // писал по делу, а не только «+»
 function peopleHtml(list) {   // люди по эфирам: сверху свежие, внутри эфира — сначала без заказа
   const groups = {};
   list.forEach(c => { const k = c.date + '|' + c.slot; (groups[k] = groups[k] || []).push(c); });
   const keys = Object.keys(groups).sort().reverse();
   return keys.map(k => {
-    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (!!a.order - !!b.order) || (a.time < b.time ? -1 : 1));
+    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (!!a.order - !!b.order) || (talked(b) - talked(a)) || (a.time < b.time ? -1 : 1));
     const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order).length;
     return `<div class="kday"><h3>${ddmm(d)}, ${wd} <span>· эфир ${slot}:00</span></h3><small>${ppl(rows.length)}${n ? ' · без заказа ' + n : ''}</small></div>
       <table class="kl"><colgroup><col style="width:22%"><col style="width:27%"><col style="width:19%"><col style="width:9%"><col style="width:10%"><col style="width:13%"></colgroup><tr><th>Кто</th><th>Связаться</th><th>Тариф</th><th>Нажал</th><th>Смотрел</th><th>Заказ</th></tr>${rows.map(clickRow).join('')}</table>`;
@@ -837,7 +838,7 @@ function clickRow(c) {
     ph ? `<a href="#" data-copy="+${ph}" title="У MAX нет ссылки на чат по номеру: номер скопируется — вставьте его в поиск MAX">MAX: скопировать номер</a>` : '',
     c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '',
     c.bhid ? `<small title="Найти в BotHelp → Подписчики">BotHelp: ${esc(c.bhid)}</small>` : ''].filter(Boolean).join('');
-  const all = c.msgs || [], main = all.filter(m => m[2] !== 0), line = m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`;
+  const all = c.msgs || [], sense = all.filter(m => m[2] !== 0), main = sense.length ? sense : all, line = m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`;
   const more = all.length > main.length ? `<details><summary>Вся переписка в чате — ${all.length} ${plural(all.length, 'сообщение', 'сообщения', 'сообщений')}</summary>${all.map(line).join('')}</details>` : '';
   const said = all.length ? `<tr class="said"><td colspan="6"><div class="say">${main.map(line).join('')}${more}</div></td></tr>` : '';
   return `<tr class="${c.order ? '' : 'todo'}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
