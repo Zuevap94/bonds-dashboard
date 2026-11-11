@@ -348,7 +348,7 @@ def bizon(env, members):
         if email in EXCLUDE_EMAILS: continue
         w, m = who[(email, wdate)], members.get(email) or {}
         said = talk(w)
-        if not v['clicked'] and not any(m[2] for m in said): continue
+        if not v['clicked'] and not said: continue  # в «писали в чат» — все, кто написал хоть что-то, даже «+» и цифры
         t = dt.datetime.fromtimestamp(w['first'] / 1000, MSK).strftime('%H:%M') if w['first'] else ''
         (clickers if v['clicked'] else chatters).append({
             'date': wdate, 'slot': w['slot'] or v['slot'], 'time': t, 'name': w['name'] or (m.get('name') or '').title(),
