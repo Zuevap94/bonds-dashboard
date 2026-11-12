@@ -165,7 +165,8 @@ def gc_members(env):
         rows = gc_export(env, 'groups/%s/users' % gid, 'группа ' + funnel)
         for r in rows:
             email = (r.get('Email') or '').strip().lower()
-            added = (r.get('Добавлен в группу') or r.get('Создан') or '')[:10]
+            added_at = (r.get('Добавлен в группу') or r.get('Создан') or '').strip()
+            added = added_at[:10]
             if not email or email in EXCLUDE_EMAILS or not added or added < START.isoformat(): continue
             src = norm(r.get('gc_system_user_utm_source') or r.get('utm_source'))
             if src in EXCLUDE_SOURCES: continue
@@ -175,7 +176,8 @@ def gc_members(env):
                    'messenger': norm(r.get('Мессенджер') or r.get('messenger')),
                    # для сопоставления зрителей Бизона без email (зашли по ссылке из бота)
                    'phone': phone10(r.get('Телефон')), 'bhid': (r.get('bothelp_id') or '').strip(),
-                   'name': (r.get('Имя') or '').strip().lower()}
+                   'name': (r.get('Имя') or '').strip().lower(), 'title': (r.get('Имя') or '').strip(),
+                   'time': added_at[11:16] if re.match(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}', added_at) else ''}
             if email not in members or rec['date'] < members[email]['date']:
                 members[email] = rec
         log('GetCourse группа', funnel, 'участников всего:', len(rows))
@@ -188,11 +190,11 @@ def gc_members(env):
         email = p[0].lower()
         if not email or not p[1] or not p[2] or email in EXCLUDE_EMAILS: continue
         rec = {'funnel': p[2], 'date': p[1], 'source': norm(p[5]), 'medium': norm(p[6]), 'campaign': norm(p[7]),
-               'messenger': norm(p[3]), 'phone': phone10(p[4]), 'bhid': '', 'name': ''}
+               'messenger': norm(p[3]), 'phone': phone10(p[4]), 'bhid': '', 'name': '', 'title': '', 'time': ''}
         old = members.get(email)
         if old and old['date'] < rec['date']: continue  # в группе раньше заявки — GetCourse главнее
         if old:  # добавили в группу позже вручную: дата и метки — из заявки, остальное — из GetCourse
-            rec.update({k: v for k, v in old.items() if k in ('bhid', 'name') or (k in ('phone', 'messenger') and v and v != NA and rec[k] in ('', NA))})
+            rec.update({k: v for k, v in old.items() if k in ('bhid', 'name', 'title') or (k in ('phone', 'messenger') and v and v != NA and rec[k] in ('', NA))})
         members[email] = rec
         extra += 1
     if extra: log('Регистраций добавлено вручную:', extra)
@@ -318,7 +320,7 @@ def bizon(env, members):
             if len(users) < limit: break
             skip += limit
     out = defaultdict(lambda: dict({'attended': 0, 'attended30': 0, 'offer': 0, 'clicked': 0, 'att_min': 0.0, 'ret': [0] * RET_MIN}, **{f: 0 for f in SLOT_FIELDS}))
-    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'offer': 0, 'clicked': 0, 'minutes': 0.0})
+    per_email = defaultdict(lambda: {'attended': 0, 'attended30': 0, 'offer': 0, 'clicked': 0, 'minutes': 0.0, 'first': ''})
     unknown = set()
     for (email, wdate), v in seen.items():
         mins, slot = v['mins'], v['slot']
@@ -327,7 +329,7 @@ def bizon(env, members):
         m = members.get(email)
         if not m:
             unknown.add(email)
-            m = {'funnel': 'Реклама', 'source': NA, 'medium': NA, 'campaign': NA, 'messenger': NA}
+            m = {'funnel': NA, 'source': NA, 'medium': NA, 'campaign': NA, 'messenger': NA}  # не нашли регистрацию — ни в рекламу, ни в органику: видны только во «Всех воронках»
         r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['attended'] += 1; r['att_min'] += mins; r['a' + slot] += 1; r['m' + slot] += mins
         if mins >= 30: r['attended30'] += 1
@@ -337,6 +339,7 @@ def bizon(env, members):
             if any(iv.get('s', 0) < (m + 1) * 60 and iv.get('e', 0) > m * 60 for iv in v['vi']): r['ret'][m] += 1
         pe = per_email[email]
         pe['attended'] = 1; pe['minutes'] = max(pe['minutes'], mins)
+        if not pe['first'] or wdate < pe['first']: pe['first'] = wdate
         if mins >= 30: pe['attended30'] = 1
         if saw_offer: pe['offer'] = 1
         if v['clicked']: pe['clicked'] = 1
@@ -458,7 +461,16 @@ def build(env):
     for (d, funnel, src, med, camp, msg), v in sorted(rows.items()):
         if d < START.isoformat() or d > today: continue
         table.append(dict(date=d, funnel=funnel, source=src, medium=med, campaign=camp, messenger=msg, **{x: (round(v[x], 2) if isinstance(v[x], float) else v[x]) for x in v}))
-    meta = {'members': len(members), 'unknown_viewers': unknown_viewers, 'campaigns': campaigns,
+    regs = []  # вкладка «Регистрации»: кто и когда записался и что с ним стало дальше
+    for email, m in members.items():
+        if m['date'] < START.isoformat() or m['date'] > today: continue
+        a, pm = att_by_email.get(email) or {}, paid_by_email.get(email) or {}
+        st = 'paid' if pm.get('paid') else 'order' if pm.get('orders') else 'click' if a.get('clicked') else 'offer' if a.get('offer') else 'came' if a.get('attended') else ''
+        regs.append({'date': m['date'], 'time': m.get('time', ''), 'name': m.get('title') or (m.get('name') or '').title(), 'phone': m.get('phone', ''),
+                     'email': email, 'funnel': m['funnel'], 'source': m['source'], 'medium': m['medium'], 'campaign': m['campaign'],
+                     'messenger': m.get('messenger', NA), 'st': st, 'mins': round(a.get('minutes', 0)), 'web': a.get('first', ''), 'bhid': m.get('bhid', '')})
+    regs.sort(key=lambda r: (r['date'], r['time']), reverse=True)
+    meta = {'members': len(members), 'regs': regs, 'unknown_viewers': unknown_viewers, 'campaigns': campaigns,
             'clickers': sorted(clickers, key=lambda c: (c['date'], c['time']), reverse=True),  # имена, контакты и чат — только в зашифрованных данных
             'chatters': sorted(chatters, key=lambda c: c['date'], reverse=True),
             'next_run': 'автоматически 5 раз в день или кнопкой «Обновить»', 'excluded': len(EXCLUDE_EMAILS)}

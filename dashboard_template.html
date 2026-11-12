@@ -83,6 +83,22 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd .card .h2sub{margin-bottom:14px}
 .zd .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
 @media(max-width:900px){.zd .grid2{grid-template-columns:1fr}}
+/* регистрации */
+.zd .kps.k4{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:18px}
+@media(max-width:760px){.zd .kps.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.zd .regday{border-bottom:1px solid var(--soft);scroll-margin-top:120px}
+.zd .regday>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;padding:14px 0 8px;border-bottom:2px solid var(--ink)}
+.zd .regday>summary::-webkit-details-marker{display:none}
+.zd .regday>summary h3:before{content:'▸';display:inline-block;width:16px;color:var(--mute);transition:transform .15s}
+.zd .regday[open]>summary h3:before{transform:rotate(90deg)}
+.zd .regday>summary h3 span{color:var(--mute);font-weight:700}
+.zd .regday>summary small{color:var(--mute);font-size:12.5px;font-weight:600}
+.zd .regday>summary small b{color:var(--ink)}
+.zd .regday:not([open])>summary{border-bottom-color:var(--line)}
+.zd .regday .tblwrap{margin-bottom:10px}
+.zd .regday.hl>summary{background:var(--green-lt);border-radius:8px 8px 0 0}
+.zd table.kl td.tm{font-weight:700;color:var(--mute)}
+.zd .hit.pick{cursor:pointer}
 /* деньги */
 .zd .hero{background:var(--ink);color:#fff;border-radius:22px;padding:22px 24px;display:grid;grid-template-columns:1.35fr repeat(5,1fr);gap:20px;margin-top:18px}
 .zd .hero .m{min-width:0}
@@ -280,7 +296,7 @@ const LAYOUT = `
 <header>
   <h1>Воронка «Облигации 2026»</h1>
   <div class="sub" id="sub"></div>
-  <div class="views" id="views" role="tablist"><button data-v="main" class="on" role="tab">Аналитика</button><button data-v="click" role="tab" title="Нажали кнопку тарифа или писали в чат — за выбранный период">Кому написать<b id="clickN"></b></button></div>
+  <div class="views" id="views" role="tablist"><button data-v="main" class="on" role="tab">Аналитика</button><button data-v="regs" role="tab" title="Кто и когда зарегистрировался — по дням">Регистрации</button><button data-v="click" role="tab" title="Нажали кнопку тарифа или писали в чат — за выбранный период">Кому написать<b id="clickN"></b></button></div>
 </header>
 <div class="bar"><div class="filters">
   <select id="fFunnel" aria-label="Воронка"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
@@ -294,6 +310,13 @@ const LAYOUT = `
   <button id="refresh" title="Собрать свежие данные прямо сейчас (несколько минут)">↻ Обновить</button>
   <div class="cpop" id="cpop" hidden></div>
 </div></div>
+<div id="vRegs" hidden>
+<div class="kps k4" id="regStat"></div>
+<div class="sec"><h2>Регистрации по дням</h2><div class="h2sub">Сколько человек записалось на вебинар в каждый день. Наведите на день — цифры, нажмите — откроется список людей за этот день</div></div>
+<div class="card"><div id="regChart"></div><div class="legend" id="regLegend"></div></div>
+<div class="sec"><h2>Кто зарегистрировался</h2><div class="h2sub">По дню регистрации, сверху свежие. «Что дальше» — пришёл ли человек на эфир, нажал ли кнопку тарифа, оформил ли заказ. Учитываются все фильтры и период</div></div>
+<div class="card"><div class="head"><div class="kstat" id="regSum"></div><button class="csvbtn" id="regCsv" title="Скачать список за период">CSV</button></div><div id="regList"></div></div>
+</div>
 <div id="vClick" hidden>
 <div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Учитываются фильтры воронки, мессенджера и период</div></div>
 <div class="card"><div class="head"><div class="kstat" id="clickStat"></div><button class="csvbtn" id="clickCsv" title="Скачать список за период">CSV</button></div><div class="tblwrap" id="clickList"></div></div>
@@ -342,8 +365,9 @@ const LAYOUT = `
 <details class="card" style="margin-top:14px"><summary>Как считаются цифры</summary><div class="inner"><dl class="defs">
 <dt>Визиты, открыли форму</dt><dd>Яндекс Метрика, счётчики рекламного и органического лендингов, по UTM визита.</dd>
 <dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама» или «…органика». Тестовые адреса исключены.</dd>
-<dt>Пришли, 30+ мин, дошли до оффера</dt><dd>Бизон: зрители комнат bonds, bonds-10, bonds-15, bonds-17. «Дошли до оффера» — были в комнате в ${OFFER_AT} или позже, когда на эфире уже кнопки тарифов. Человек считается один раз в день.</dd>
+<dt>Пришли, 30+ мин, дошли до оффера</dt><dd>Бизон: зрители комнат bonds, bonds-10, bonds-15, bonds-17. «Дошли до оффера» — были в комнате в ${OFFER_AT} или позже, когда на эфире уже кнопки тарифов. Человек считается один раз в день. Зрители, которых не нашли среди регистраций GetCourse (зашли по чужой ссылке или с другой почтой и телефоном), не относятся ни к рекламе, ни к органике — они видны только при «Все воронки».</dd>
 <dt>Нажали кнопку тарифа</dt><dd>Бизон фиксирует нажатия на кнопки тарифов во время эфира.</dd>
+<dt>Вкладка «Регистрации»</dt><dd>Каждый, кто попал в группу вебинара в GetCourse, — по дню и времени добавления в группу. «Что дальше» — самый дальний шаг человека: был на эфире, дошёл до оффера, нажал кнопку тарифа, оформил заказ, оплатил.</dd>
 <dt>Вкладка «Нажали кнопку тарифа»</dt><dd>Каждый, кто нажал кнопку тарифа в комнате Бизона, — один раз за день эфира, даже если нажимал несколько раз. Имя и телефон — из Бизона, почта и мессенджер — из регистрации в GetCourse. «Заказ» — есть ли у человека заказ курса в GetCourse. Список виден только после ввода пароля.</dd>
 <dt>Кривая удержания</dt><dd>Для каждой минуты эфира — сколько пришедших были в комнате хотя бы часть этой минуты. Опоздавшие добавляются, ушедшие вычитаются, поэтому в начале кривая может расти.</dd>
 <dt>Когорта</dt><dd>В воронке шаги после регистрации считаются по людям, зарегистрировавшимся за период: что с ними стало. Поэтому по свежим регистрациям цифры ещё дорастут.</dd>
@@ -374,6 +398,8 @@ function init(data) {
   $('#csv').addEventListener('click', exportCsv);
   $('#cutCsv').addEventListener('click', exportCut);
   $('#clickCsv').addEventListener('click', exportClicks);
+  $('#regCsv').addEventListener('click', exportRegs);
+  $('#regChart').addEventListener('click', e => { const h = e.target.closest && e.target.closest('[data-day]'); if (h) openRegDay(h.dataset.day); });
   root.querySelectorAll('#views button').forEach(b => b.addEventListener('click', () => showView(b.dataset.v)));
   let v0 = 'main'; try { v0 = localStorage.getItem('zd_view') || 'main'; } catch (e) {}
   showView(v0, true);
@@ -476,7 +502,7 @@ function draw() {
   const bn = bottleneck(t);
   drawHero(t, p); drawInsights(t, list, bn); drawFunnel(t, noVisits, bn); drawBench(t); drawEcon(t, p);
   const days = dayList(list); chart(days); chart2(days);
-  drawRet(list, t); drawSlots(t); drawMsgs(list); drawCut(list); drawDayTable(days); drawQuality(); drawClicks();
+  drawRet(list, t); drawSlots(t); drawMsgs(list); drawCut(list); drawDayTable(days); drawQuality(); drawClicks(); drawRegs();
 }
 
 /* ---- деньги ---- */
@@ -605,8 +631,8 @@ function axis(W, H, pl, pb, max, f) {
 }
 const nice = m => { if (m <= 4) return 4; const p = Math.pow(10, Math.floor(Math.log10(m))); return [1, 2, 2.5, 5, 10].map(k => k * p).find(v => v >= m); };
 const kfmt = v => v >= 1000 ? (Math.round(v / 100) / 10).toString().replace('.', ',') + ' тыс' : fmt(v);
-function xlabels(days, x, bw, H) {
-  const n = days.length, step = Math.ceil(n / 12);
+function xlabels(days, x, bw, H, most) {
+  const n = days.length, step = Math.ceil(n / (most || 12));
   return days.map((d, i) => i % step === 0 ? `<text x="${x(i) + bw / 2}" y="${H - 6}" font-size="11" fill="#6E6A5E" text-anchor="middle">${ddmm(d.key)}</text>` : '').join('');
 }
 function chart(days) {
@@ -793,9 +819,10 @@ function exportCut() {   // таблица «Откуда приходят» в 
 
 /* ---- вкладка «Нажали кнопку тарифа»: список людей из отчётов Бизона, чтобы им написать ---- */
 function showView(v, quiet) {
-  if (v !== 'click') v = 'main';
+  if (v !== 'click' && v !== 'regs') v = 'main';
   root.querySelectorAll('#views button').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
-  $('#vMain').hidden = v !== 'main'; $('#vClick').hidden = v !== 'click';
+  $('#vMain').hidden = v !== 'main'; $('#vClick').hidden = v !== 'click'; $('#vRegs').hidden = v !== 'regs';
+  if (v === 'regs' && DATA) drawRegs();   // пока вкладка скрыта, ширина графика неизвестна
   try { localStorage.setItem('zd_view', v); } catch (e) {}
   if (!quiet) window.scrollTo({ top: Math.min(window.scrollY, root.offsetTop) });
 }
@@ -851,6 +878,101 @@ function exportClicks() {
     chat: (c.msgs || []).map(m => m[0] + ' мин: ' + m[1]).join(' | ') }));
   const [from] = range();
   saveCsv(['date', 'slot', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'tariffs', 'minutes', 'order', 'bothelp', 'chat'], out, 'nazhali-knopku-' + (from || 'vse') + '.csv');
+}
+
+/* ---- регистрации: кто и когда записался ---- */
+const FUN = [['Реклама', '#2F7D52'], ['Органика', '#D69A2D']];   // цвет закреплён за воронкой, не за порядком
+const REGST = { paid: ['ok', 'Оплатил'], order: ['warn', 'Оформил заказ'], click: ['hi', 'Нажал кнопку тарифа'], offer: ['', 'Дошёл до оффера'], came: ['', 'Был на эфире'] };
+function regBase() {   // все фильтры, кроме периода
+  const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value, g = $('#fMsg').value;
+  return ((DATA && DATA.meta && DATA.meta.regs) || []).filter(r => (!f || r.funnel === f) && (!s || r.source === s) && (!m || r.medium === m)
+    && (!g || (r.messenger || '(не указан)') === g) && campOn(r.campaign));
+}
+function regList() { const [from] = range(); return regBase().filter(r => !from || r.date >= from); }
+const cntBy = (list, d) => list.filter(r => r.date === d).length;
+function drawRegs() {
+  const all = regBase(), list = regList(), [from, pfrom] = range(), td = today(), yd = shift(td, -1);
+  const start = (DATA && DATA.start) || '', prev = from && from > start ? all.filter(r => r.date >= pfrom && r.date < from).length : null;   // до запуска сравнивать не с чем
+  const days = regDays(list), best = days.reduce((b, d) => d.n > b.n ? d : b, { n: 0 }), nDays = days.length || 1;
+  const dl = (cur, p) => { if (!p) return ['', '&nbsp;']; const d = (cur - p) / p; return [d >= 0 ? 'up' : 'down', (d >= 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(d * 100)) + '%']; };
+  const kp = (label, val, d, text) => `<div class="kp"><div class="lb">${label}</div><b>${val}</b><small class="${d[0] || ''}">${d[1] || '&nbsp;'}</small><p>${text}</p></div>`;
+  const tN = cntBy(all, td), yN = cntBy(all, yd), y2 = cntBy(all, shift(td, -2));
+  $('#regStat').innerHTML = kp('Сегодня', fmt(tN), ['', '&nbsp;'], 'День ещё идёт. Вчера за весь день — ' + fmt(yN))
+    + kp('Вчера', fmt(yN), dl(yN, y2), 'Позавчера — ' + fmt(y2))
+    + kp(period ? 'За ' + period + ' ' + plural(period, 'день', 'дня', 'дней') : 'За всё время', fmt(list.length), prev === null ? ['', '&nbsp;'] : dl(list.length, prev), prev === null ? 'С запуска воронки ' + ddmm(start) : 'Предыдущие ' + period + ' ' + plural(period, 'день', 'дня', 'дней') + ' — ' + fmt(prev))
+    + kp('В среднем в день', (Math.round(list.length / nDays * 10) / 10).toString().replace('.', ','), ['', '&nbsp;'], best.n ? 'Лучший день — ' + ddmm(best.key) + ': ' + fmt(best.n) : 'За период регистраций нет');
+  regChart(days);
+  const came = list.filter(r => r.st).length;
+  $('#regSum').innerHTML = list.length ? `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'регистрация', 'регистрации', 'регистраций')}</span>` + FUN.map(([f]) => { const n = list.filter(r => r.funnel === f).length; return n ? `<span class="chip">${f.toLowerCase()} ${fmt(n)}</span>` : ''; }).join('') + `<span class="chip ok">были на эфире ${fmt(came)}</span>` : '';
+  $('#regList').innerHTML = list.length ? regListHtml(list) : '<div class="empty">За выбранный период регистраций нет</div>';
+}
+function regDays(list) {   // каждый день периода, даже пустой
+  const by = {}; list.forEach(r => (by[r.date] = by[r.date] || []).push(r));
+  const start = (DATA && DATA.start) || '', r0 = range()[0], from = r0 && r0 > start ? r0 : start, out = [];
+  if (!from) return out;
+  for (let d = from; d <= today() && out.length < 400; d = shift(d, 1)) { const l = by[d] || []; out.push({ key: d, n: l.length, f: FUN.map(([f]) => l.filter(r => r.funnel === f).length) }); }
+  return out;
+}
+function regChart(days) {
+  const W = Math.max(340, Math.min(1200, $('#regChart').clientWidth || 1000)), H = W < 600 ? 220 : 260, pl = 34, pb = 26, n = days.length;   // ширина по экрану: подписи не мельчат на телефоне
+  if (!n || !days.some(d => d.n)) { $('#regChart').innerHTML = '<div class="empty">Нет регистраций за период</div>'; $('#regLegend').innerHTML = ''; return; }
+  const max = nice(Math.max(1, ...days.map(d => d.n)));
+  const [grid, y] = axis(W, H, pl, pb, max), bw = (W - pl) / n, x = i => pl + i * bw, bar = Math.max(2, Math.min(36, bw * .7)), gap = bar > 6 ? 2 : 0;
+  const best = days.reduce((b, d, i) => d.n > days[b].n ? i : b, 0), last = n - 1;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Регистрации по дням">` + grid;
+  days.forEach((d, i) => {
+    let cum = 0; const x0 = x(i) + (bw - bar) / 2, segs = FUN.map(([, c], k) => [d.f[k], c]).filter(z => z[0]);
+    segs.forEach(([v, c], k) => {   // столбик: реклама снизу, органика сверху, между ними 2px фона; скругление — только у верхнего края
+      const yy = y(cum + v), hh = Math.max(1, y(cum) - yy - (k ? gap : 0)), r = k === segs.length - 1 ? Math.min(4, bar / 2, hh) : 0;
+      s += r ? `<path d="M${x0},${yy + hh} V${yy + r} Q${x0},${yy} ${x0 + r},${yy} H${x0 + bar - r} Q${x0 + bar},${yy} ${x0 + bar},${yy + r} V${yy + hh} Z" fill="${c}"/>`
+             : `<rect x="${x0}" y="${yy}" width="${bar}" height="${hh}" fill="${c}"/>`;
+      cum += v;
+    });
+    if (d.n && (i === best || i === last)) s += `<text x="${x(i) + bw / 2}" y="${y(d.n) - 6}" font-size="12" font-weight="800" fill="#14130F" text-anchor="middle">${fmt(d.n)}</text>`;
+  });
+  s += xlabels(days, x, bw, H, Math.max(4, Math.floor((W - pl) / 46)));
+  days.forEach((d, i) => {
+    const wd = WD[new Date(d.key + 'T12:00:00Z').getUTCDay()];
+    const tip = `<b>${ddmm(d.key)}, ${wd}</b><br>Регистраций: <b>${fmt(d.n)}</b>` + FUN.map(([f], k) => `<br>${f}: <b>${fmt(d.f[k])}</b>`).join('') + (d.n ? '<br><span class="tm">Нажмите — список людей</span>' : '');
+    s += `<rect class="hit${d.n ? ' pick' : ''}" x="${x(i)}" y="0" width="${bw}" height="${H - pb}" data-tip="${esc(tip)}"${d.n ? ` data-day="${d.key}"` : ''}/>`;
+  });
+  $('#regChart').innerHTML = s + '</svg>';
+  const used = FUN.filter((_, k) => days.some(d => d.f[k]));
+  $('#regLegend').innerHTML = used.length > 1 ? used.map(([f, c]) => `<span><i style="background:${c}"></i>${f}</span>`).join('') : '';
+}
+function regListHtml(list) {
+  const by = {}; list.forEach(r => (by[r.date] = by[r.date] || []).push(r));
+  return Object.keys(by).sort().reverse().map((d, i) => {
+    const rows = by[d], wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], came = rows.filter(r => r.st).length;
+    const split = FUN.map(([f]) => [f, rows.filter(r => r.funnel === f).length]).filter(z => z[1]).map(([f, n]) => f.toLowerCase() + ' ' + n).join(' · ');
+    return `<details class="regday" data-d="${d}"${i < 3 ? ' open' : ''}><summary><h3>${ddmm(d)}, ${wd}${d === today() ? ' <span>· сегодня</span>' : ''}</h3><small><b>${ppl(rows.length)}</b>${split ? ' · ' + split : ''}${came ? ' · были на эфире ' + came : ''}</small></summary>
+      <div class="tblwrap"><table class="kl"><colgroup><col style="width:8%"><col style="width:22%"><col style="width:28%"><col style="width:22%"><col style="width:20%"></colgroup><tr><th>Время</th><th>Кто</th><th>Связаться</th><th>Откуда</th><th>Что дальше</th></tr>${rows.map(regRow).join('')}</table></div></details>`;
+  }).join('');
+}
+function regRow(r) {
+  const ph = r.phone ? '7' + r.phone : '';
+  const ct = [ph ? `<a href="tel:+${ph}">+${ph.replace(/^(\d)(\d{3})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3-$4-$5')}</a>` : '',
+    r.email ? `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ''].filter(Boolean).join('');
+  const src = [r.source, r.medium].filter(v => v && v !== '(не указан)').join(' / '), cn = r.campaign && r.campaign !== '(не указан)' ? (campName(r.campaign) || r.campaign) : '';
+  let st;
+  if (r.st) { const o = REGST[r.st]; st = `<span class="chip ${o[0]}">${o[1]}</span>` + (r.mins ? `<small>${r.web && r.web !== r.date ? 'эфир ' + ddmm(r.web) + ', ' : ''}смотрел ${fmt(r.mins)} мин</small>` : ''); }
+  else st = r.date === today() ? '<span class="chip">Эфир ещё впереди</span>' : '<span class="chip">Не пришёл на эфир</span>';
+  return `<tr><td class="tm">${esc(r.time || '—')}</td><td class="who">${esc(r.name || 'Без имени')}<small>${esc(MSGN[r.messenger] || 'мессенджер не выбран')}</small></td><td><div class="ct">${ct || '—'}</div></td>
+    <td>${esc(r.funnel)}<small>${esc(src || 'без метки')}${cn ? '<br>' + esc(cn) : ''}</small></td><td>${st}</td></tr>`;
+}
+function openRegDay(d) {
+  const el = root.querySelector(`.regday[data-d="${d}"]`); if (!el) return;
+  el.open = true; root.querySelectorAll('.regday.hl').forEach(x => x.classList.remove('hl')); el.classList.add('hl');
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(() => el.classList.remove('hl'), 2500);
+}
+function exportRegs() {
+  const list = regList(); if (!list.length) return;
+  const out = list.map(r => ({ date: r.date, time: r.time, name: r.name, phone: r.phone ? '+7' + r.phone : '', email: r.email, messenger: MSGN[r.messenger] || '',
+    funnel: r.funnel, source: r.source, medium: r.medium, campaign: campName(r.campaign) || r.campaign,
+    status: r.st ? REGST[r.st][1] : 'Не был на эфире', webinar: r.web, minutes: r.mins, bothelp: r.bhid }));
+  const [from] = range();
+  saveCsv(['date', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'source', 'medium', 'campaign', 'status', 'webinar', 'minutes', 'bothelp'], out, 'registracii-' + (from || 'vse') + '.csv');
 }
 
 root.addEventListener('click', e => {   // «MAX: скопировать номер»
