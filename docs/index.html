@@ -66,6 +66,12 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd table.kl tr.has-said td{border-bottom:0}
 .zd table.kl tr.said td{padding-top:0}
 .zd table.kl tr.todo+tr.said td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.zd table.kl tr.done td{opacity:.5}
+.zd table.kl tr.done td:last-child{opacity:1}
+.zd table.kl tr.done+tr.said td{opacity:.5}
+.zd .donebtn{display:block;margin-top:6px;font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--text);white-space:nowrap}
+.zd .donebtn:hover{border-color:var(--green);color:var(--green)}
+.zd tr.done .donebtn{background:var(--green-lt);border-color:transparent;color:var(--green)}
 .zd .say{background:var(--soft);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text);line-height:1.4}
 .zd .say p{margin:0}
 .zd .say p b{color:var(--mute);font-weight:700;font-size:11.5px;margin-right:6px;white-space:nowrap}
@@ -327,7 +333,7 @@ const LAYOUT = `
 <div class="card"><div class="head"><div class="kstat" id="regSum"></div><button class="csvbtn" id="regCsv" title="Скачать список за период">CSV</button></div><div id="regList"></div></div>
 </div>
 <div id="vClick" hidden>
-<div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Учитываются фильтры воронки, мессенджера и период</div></div>
+<div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Написали — нажмите «Написал»: человек уйдёт вниз и пропадёт из счётчика (отметки хранятся в этом браузере). Учитываются фильтры воронки, мессенджера и период</div></div>
 <div class="card"><div class="head"><div class="kstat" id="clickStat"></div><button class="csvbtn" id="clickCsv" title="Скачать список за период">CSV</button></div><div class="tblwrap" id="clickList"></div></div>
 <div class="sec"><h2>Писали в чат, но кнопку не нажали</h2><div class="h2sub">Все зрители, которые хоть что-то писали в чат, со всех эфиров. В каждом эфире сверху — те, кто писал по делу, ниже — кто отвечал только «+» и цифрами</div></div>
 <div class="card"><div class="tblwrap" id="chatList"></div></div>
@@ -417,6 +423,7 @@ function init(data) {
   setupCamps();
   $('#refresh').addEventListener('click', refresh);
   draw();
+  syncDone();
 }
 
 /* ---- данные под фильтры ---- */
@@ -830,6 +837,7 @@ function exportCut() {   // таблица «Откуда приходят» в 
 
 /* ---- вкладка «Нажали кнопку тарифа»: список людей из отчётов Бизона, чтобы им написать ---- */
 function showView(v, quiet) {
+  if (v === 'click' && DATA && doneShared !== null) syncDone();   // свежие отметки с других устройств
   if (v !== 'click' && v !== 'regs') v = 'main';
   root.querySelectorAll('#views button').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#vMain').hidden = v !== 'main'; $('#vClick').hidden = v !== 'click'; $('#vRegs').hidden = v !== 'regs';
@@ -845,13 +853,58 @@ function clickList(key) {
 const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const ORDER = { paid: ['ok', 'Оплатил'], order: ['warn', 'Оформил заказ'], '': ['bad', 'Нет заказа'] };
 const MSGN = { telegram: 'Telegram', max: 'MAX' };
+/* «Написал»: человек уходит вниз своего эфира и больше не висит в счётчике. Отметки общие для всех устройств — переменная
+   DASHBOARD_DONE в репозитории GitHub (токен кнопки «Обновить», право Variables). В переменной только хэши, без почт и телефонов.
+   Если доступа нет — отметки живут в этом браузере. */
+const DONE_KEY = 'zd_done', DONE_VAR = 'DASHBOARD_DONE';
+const hash = str => { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36); };
+const doneKey = c => hash(c.date + '|' + (c.email || c.phone || c.name || ''));
+let DONE = {}, doneShared = null;   // null — ещё не знаем, true — общие, false — только этот браузер
+try { const old = JSON.parse(localStorage.getItem(DONE_KEY) || '{}') || {}; Object.keys(old).forEach(k => { DONE[k.includes('|') ? hash(k) : k] = old[k]; }); } catch (e) {}
+const isDone = c => !!DONE[doneKey(c)];
+const doneLocal = () => { try { localStorage.setItem(DONE_KEY, JSON.stringify(DONE)); } catch (e) {} };
+function ghDone(method, body) {
+  const m = (DATA && DATA.meta) || {}, repo = m.repo || 'Zuevap94/bonds-dashboard';
+  if (!m.trigger_token) return Promise.reject(new Error('нет токена'));
+  return fetch('https://api.github.com/repos/' + repo + '/actions/variables' + (method === 'POST' ? '' : '/' + DONE_VAR), { method, cache: 'no-store',
+    headers: { Authorization: 'Bearer ' + m.trigger_token, Accept: 'application/vnd.github+json' }, body: body ? JSON.stringify(body) : undefined });
+}
+async function doneRemote() {   // {map, existed}; null — нет доступа
+  const r = await ghDone('GET');
+  if (r.status === 404) return { map: {}, existed: false };
+  if (!r.ok) return null;
+  try { return { map: JSON.parse((await r.json()).value || '{}') || {}, existed: true }; } catch (e) { return { map: {}, existed: true }; }
+}
+async function doneSave(map, existed) {
+  const value = JSON.stringify(map);
+  const r = existed ? await ghDone('PATCH', { name: DONE_VAR, value }) : await ghDone('POST', { name: DONE_VAR, value });
+  if (!r.ok) throw new Error('GitHub ' + r.status);
+}
+async function syncDone(change) {   // change: [ключ, дата | null] — отметить / снять; без него — просто подтянуть чужие отметки
+  try {
+    const remote = await doneRemote();
+    if (remote === null) throw new Error('нет доступа');
+    const existed = remote.existed, map = Object.assign({}, remote.map);
+    let dirty = false;
+    if (doneShared === null) { let first = true; try { first = !localStorage.getItem('zd_done_shared'); } catch (e) {}
+      if (first) Object.keys(DONE).forEach(k => { if (!map[k]) { map[k] = DONE[k]; dirty = true; } }); }   // перенести отметки этого браузера
+    if (change) { if (change[1]) map[change[0]] = change[1]; else delete map[change[0]]; dirty = true; }
+    const cut = shift(today(), -60); Object.keys(map).forEach(k => { if (map[k] < cut) { delete map[k]; dirty = true; } });   // старше 60 дней — не нужны
+    if (dirty) await doneSave(map, existed);
+    DONE = map; doneShared = true; try { localStorage.setItem('zd_done_shared', '1'); } catch (e) {}
+  } catch (e) { doneShared = false; }
+  doneLocal(); if (DATA) drawClicks();
+}
 function drawClicks() {
-  const list = clickList(), todo = list.filter(c => !c.order).length;
+  const list = clickList(), todo = list.filter(c => !c.order && !isDone(c)).length;
   $('#clickN').textContent = todo ? String(todo) : '';
-  $('#clickN').title = todo ? todo + ' без заказа' : '';
+  $('#clickN').title = todo ? todo + ' без заказа, ещё не написали' : '';
   if (!list.length) { $('#clickStat').innerHTML = ''; $('#clickList').innerHTML = '<div class="empty">За выбранный период никто не нажимал кнопку тарифа</div>'; return; }
   const cnt = k => list.filter(c => c.order === k).length;
-  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>`;
+  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>` + (list.some(isDone) ? `<span class="chip">написали ${fmt(list.filter(isDone).length)}</span>` : '')
+    + (doneShared === false ? `<span class="chip warn" title="Нет доступа к общим отметкам в GitHub: отметки «Написал» видны только в этом браузере">отметки только в этом браузере</span>` : doneShared ? `<span class="chip" title="Отметки «Написал» общие для всех устройств">отметки общие ✓</span>` : '');
   $('#clickList').innerHTML = peopleHtml(list);
   const chat = clickList('chatters');
   $('#chatList').innerHTML = chat.length ? peopleHtml(chat) : '<div class="empty">За выбранный период никто не писал в чат</div>';
@@ -862,8 +915,8 @@ function peopleHtml(list) {   // люди по эфирам: сверху све
   list.forEach(c => { const k = c.date + '|' + c.slot; (groups[k] = groups[k] || []).push(c); });
   const keys = Object.keys(groups).sort().reverse();
   return keys.map(k => {
-    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (!!a.order - !!b.order) || (talked(b) - talked(a)) || (a.time < b.time ? -1 : 1));
-    const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order).length;
+    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (isDone(a) - isDone(b)) || (!!a.order - !!b.order) || (talked(b) - talked(a)) || (a.time < b.time ? -1 : 1));
+    const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order && !isDone(c)).length;
     return `<div class="kday"><h3>${ddmm(d)}, ${wd} <span>· эфир ${slot}:00</span></h3><small>${ppl(rows.length)}${n ? ' · без заказа ' + n : ''}</small></div>
       <table class="kl"><colgroup><col style="width:22%"><col style="width:27%"><col style="width:19%"><col style="width:9%"><col style="width:10%"><col style="width:13%"></colgroup><tr><th>Кто</th><th>Связаться</th><th>Тариф</th><th>Нажал</th><th>Смотрел</th><th>Заказ</th></tr>${rows.map(clickRow).join('')}</table>`;
   }).join('');
@@ -879,8 +932,9 @@ function clickRow(c) {
   const all = c.msgs || [], sense = all.filter(m => m[2] !== 0), main = sense.length ? sense : all, line = m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`;
   const more = all.length > main.length ? `<details><summary>Вся переписка в чате — ${all.length} ${plural(all.length, 'сообщение', 'сообщения', 'сообщений')}</summary>${all.map(line).join('')}</details>` : '';
   const said = all.length ? `<tr class="said"><td colspan="6"><div class="say">${main.map(line).join('')}${more}</div></td></tr>` : '';
-  return `<tr class="${c.order ? '' : 'todo'}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
-    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span></td></tr>` + said;
+  const dn = DONE[doneKey(c)], btn = `<button class="donebtn" data-done="${esc(doneKey(c))}" title="${dn ? 'Вернуть в список «написать»' : 'Отметить, что уже написали: человек уйдёт вниз и пропадёт из счётчика'}">${dn ? '✓ Написал ' + ddmm(dn) : 'Написал'}</button>`;
+  return `<tr class="${c.order || dn ? '' : 'todo'}${dn ? ' done' : ''}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
+    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span>${btn}</td></tr>` + said;
 }
 function exportClicks() {
   const list = clickList(); if (!list.length) return;
@@ -1057,6 +1111,12 @@ function exportRegs() {
   saveCsv(['date', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'source', 'medium', 'campaign', 'status', 'webinar', 'minutes', 'bothelp'], out, 'registracii-' + (from || 'vse') + '.csv');
 }
 
+root.addEventListener('click', e => {   // «Написал» / вернуть
+  const b = e.target.closest && e.target.closest('[data-done]'); if (!b) return;
+  const k = b.dataset.done, v = DONE[k] ? null : today();
+  if (v) DONE[k] = v; else delete DONE[k];
+  doneLocal(); drawClicks(); syncDone([k, v]);
+});
 root.addEventListener('click', e => {   // «MAX: скопировать номер»
   const a = e.target.closest && e.target.closest('[data-copy]'); if (!a) return;
   e.preventDefault();
