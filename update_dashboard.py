@@ -330,7 +330,7 @@ def bizon(env, members):
         m = members.get(email)
         if not m:
             unknown.add(email)
-            m = {'funnel': NA, 'source': NA, 'medium': NA, 'campaign': NA, 'messenger': NA}  # не нашли регистрацию — ни в рекламу, ни в органику: видны только во «Всех воронках»
+            m = {'funnel': 'Органика', 'source': NA, 'medium': NA, 'campaign': NA, 'messenger': NA}  # не нашли регистрацию — считаем органикой (обычно зашли по ссылке из бота или от знакомых)
         r = out[(wdate, m['funnel'], m['source'], m['medium'], m['campaign'], m.get('messenger', NA))]
         r['attended'] += 1; r['att_min'] += mins; r['a' + slot] += 1; r['m' + slot] += mins
         if mins >= 30: r['attended30'] += 1
