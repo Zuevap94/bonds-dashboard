@@ -66,6 +66,12 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:Manrope,-appl
 .zd table.kl tr.has-said td{border-bottom:0}
 .zd table.kl tr.said td{padding-top:0}
 .zd table.kl tr.todo+tr.said td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.zd table.kl tr.done td{opacity:.5}
+.zd table.kl tr.done td:last-child{opacity:1}
+.zd table.kl tr.done+tr.said td{opacity:.5}
+.zd .donebtn{display:block;margin-top:6px;font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--text);white-space:nowrap}
+.zd .donebtn:hover{border-color:var(--green);color:var(--green)}
+.zd tr.done .donebtn{background:var(--green-lt);border-color:transparent;color:var(--green)}
 .zd .say{background:var(--soft);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text);line-height:1.4}
 .zd .say p{margin:0}
 .zd .say p b{color:var(--mute);font-weight:700;font-size:11.5px;margin-right:6px;white-space:nowrap}
@@ -327,7 +333,7 @@ const LAYOUT = `
 <div class="card"><div class="head"><div class="kstat" id="regSum"></div><button class="csvbtn" id="regCsv" title="Скачать список за период">CSV</button></div><div id="regList"></div></div>
 </div>
 <div id="vClick" hidden>
-<div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Учитываются фильтры воронки, мессенджера и период</div></div>
+<div class="sec"><h2>Нажали кнопку тарифа</h2><div class="h2sub">Кто на эфире нажал кнопку тарифа — по дням и эфирам, сверху свежие. Красная полоса — заказ ещё не оформлен: им стоит написать первыми. Написали — нажмите «Написал»: человек уйдёт вниз и пропадёт из счётчика (отметки хранятся в этом браузере). Учитываются фильтры воронки, мессенджера и период</div></div>
 <div class="card"><div class="head"><div class="kstat" id="clickStat"></div><button class="csvbtn" id="clickCsv" title="Скачать список за период">CSV</button></div><div class="tblwrap" id="clickList"></div></div>
 <div class="sec"><h2>Писали в чат, но кнопку не нажали</h2><div class="h2sub">Все зрители, которые хоть что-то писали в чат, со всех эфиров. В каждом эфире сверху — те, кто писал по делу, ниже — кто отвечал только «+» и цифрами</div></div>
 <div class="card"><div class="tblwrap" id="chatList"></div></div>
@@ -845,13 +851,18 @@ function clickList(key) {
 const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const ORDER = { paid: ['ok', 'Оплатил'], order: ['warn', 'Оформил заказ'], '': ['bad', 'Нет заказа'] };
 const MSGN = { telegram: 'Telegram', max: 'MAX' };
+/* «Написал»: отметка хранится в этом браузере — человек уходит вниз своего эфира и больше не висит в счётчике */
+const DONE_KEY = 'zd_done';
+let DONE = {}; try { DONE = JSON.parse(localStorage.getItem(DONE_KEY) || '{}') || {}; } catch (e) {}
+const doneKey = c => c.date + '|' + (c.email || c.phone || c.name || '');
+const isDone = c => !!DONE[doneKey(c)];
 function drawClicks() {
-  const list = clickList(), todo = list.filter(c => !c.order).length;
+  const list = clickList(), todo = list.filter(c => !c.order && !isDone(c)).length;
   $('#clickN').textContent = todo ? String(todo) : '';
-  $('#clickN').title = todo ? todo + ' без заказа' : '';
+  $('#clickN').title = todo ? todo + ' без заказа, ещё не написали' : '';
   if (!list.length) { $('#clickStat').innerHTML = ''; $('#clickList').innerHTML = '<div class="empty">За выбранный период никто не нажимал кнопку тарифа</div>'; return; }
   const cnt = k => list.filter(c => c.order === k).length;
-  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>`;
+  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>` + (list.some(isDone) ? `<span class="chip">написали ${fmt(list.filter(isDone).length)}</span>` : '');
   $('#clickList').innerHTML = peopleHtml(list);
   const chat = clickList('chatters');
   $('#chatList').innerHTML = chat.length ? peopleHtml(chat) : '<div class="empty">За выбранный период никто не писал в чат</div>';
@@ -862,8 +873,8 @@ function peopleHtml(list) {   // люди по эфирам: сверху све
   list.forEach(c => { const k = c.date + '|' + c.slot; (groups[k] = groups[k] || []).push(c); });
   const keys = Object.keys(groups).sort().reverse();
   return keys.map(k => {
-    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (!!a.order - !!b.order) || (talked(b) - talked(a)) || (a.time < b.time ? -1 : 1));
-    const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order).length;
+    const [d, slot] = k.split('|'), rows = groups[k].sort((a, b) => (isDone(a) - isDone(b)) || (!!a.order - !!b.order) || (talked(b) - talked(a)) || (a.time < b.time ? -1 : 1));
+    const wd = WD[new Date(d + 'T12:00:00Z').getUTCDay()], n = rows.filter(c => !c.order && !isDone(c)).length;
     return `<div class="kday"><h3>${ddmm(d)}, ${wd} <span>· эфир ${slot}:00</span></h3><small>${ppl(rows.length)}${n ? ' · без заказа ' + n : ''}</small></div>
       <table class="kl"><colgroup><col style="width:22%"><col style="width:27%"><col style="width:19%"><col style="width:9%"><col style="width:10%"><col style="width:13%"></colgroup><tr><th>Кто</th><th>Связаться</th><th>Тариф</th><th>Нажал</th><th>Смотрел</th><th>Заказ</th></tr>${rows.map(clickRow).join('')}</table>`;
   }).join('');
@@ -879,8 +890,9 @@ function clickRow(c) {
   const all = c.msgs || [], sense = all.filter(m => m[2] !== 0), main = sense.length ? sense : all, line = m => `<p><b>${m[0]} мин</b>${esc(m[1])}</p>`;
   const more = all.length > main.length ? `<details><summary>Вся переписка в чате — ${all.length} ${plural(all.length, 'сообщение', 'сообщения', 'сообщений')}</summary>${all.map(line).join('')}</details>` : '';
   const said = all.length ? `<tr class="said"><td colspan="6"><div class="say">${main.map(line).join('')}${more}</div></td></tr>` : '';
-  return `<tr class="${c.order ? '' : 'todo'}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
-    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span></td></tr>` + said;
+  const dn = DONE[doneKey(c)], btn = `<button class="donebtn" data-done="${esc(doneKey(c))}" title="${dn ? 'Вернуть в список «написать»' : 'Отметить, что уже написали: человек уйдёт вниз и пропадёт из счётчика'}">${dn ? '✓ Написал ' + ddmm(dn) : 'Написал'}</button>`;
+  return `<tr class="${c.order || dn ? '' : 'todo'}${dn ? ' done' : ''}${said ? ' has-said' : ''}"><td class="who">${esc(c.name || 'Без имени')}<small>${esc(where)}</small></td><td><div class="ct">${ct || '—'}</div></td>
+    <td>${esc((c.tariffs || []).join(', ') || '—')}</td><td>${esc(c.time || '—')}</td><td>${fmt(c.mins)} мин</td><td><span class="chip ${o[0]}">${o[1]}</span>${btn}</td></tr>` + said;
 }
 function exportClicks() {
   const list = clickList(); if (!list.length) return;
@@ -1057,6 +1069,13 @@ function exportRegs() {
   saveCsv(['date', 'time', 'name', 'phone', 'email', 'messenger', 'funnel', 'source', 'medium', 'campaign', 'status', 'webinar', 'minutes', 'bothelp'], out, 'registracii-' + (from || 'vse') + '.csv');
 }
 
+root.addEventListener('click', e => {   // «Написал» / вернуть
+  const b = e.target.closest && e.target.closest('[data-done]'); if (!b) return;
+  const k = b.dataset.done;
+  if (DONE[k]) delete DONE[k]; else DONE[k] = today();
+  try { localStorage.setItem(DONE_KEY, JSON.stringify(DONE)); } catch (e) {}
+  drawClicks();
+});
 root.addEventListener('click', e => {   // «MAX: скопировать номер»
   const a = e.target.closest && e.target.closest('[data-copy]'); if (!a) return;
   e.preventDefault();
