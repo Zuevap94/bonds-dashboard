@@ -204,7 +204,7 @@ def gc_members(env):
 def gc_orders(env, members):
     """{(date, funnel, source, medium, campaign): {orders, paid, revenue}} и по людям: email → {paid, revenue}"""
     out = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
-    per_email = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0})
+    per_email = defaultdict(lambda: {'orders': 0, 'paid': 0, 'revenue': 0.0, 'pdate': ''})
     rows = gc_export(env, 'deals', 'заказы', {'created_at[from]': START.isoformat()})
     by_phone = defaultdict(list)  # заказ с опечаткой в почте (mail.tu вместо mail.ru) — GetCourse заводит нового пользователя; узнаём человека по телефону
     for e, m in members.items():
@@ -233,6 +233,7 @@ def gc_orders(env, members):
             out[(pdate, funnel, src, med, camp, msg)]['revenue'] += money
             per_email[email]['paid'] += 1
             per_email[email]['revenue'] += money
+            if not per_email[email]['pdate'] or pdate < per_email[email]['pdate']: per_email[email]['pdate'] = pdate  # первая оплата — для прогноза продаж
         n += 1
     log('GetCourse заказы курса:', n)
     return out, per_email
@@ -468,7 +469,8 @@ def build(env):
         st = 'paid' if pm.get('paid') else 'order' if pm.get('orders') else 'click' if a.get('clicked') else 'offer' if a.get('offer') else 'came' if a.get('attended') else ''
         regs.append({'date': m['date'], 'time': m.get('time', ''), 'name': m.get('title') or (m.get('name') or '').title(), 'phone': m.get('phone', ''),
                      'email': email, 'funnel': m['funnel'], 'source': m['source'], 'medium': m['medium'], 'campaign': m['campaign'],
-                     'messenger': m.get('messenger', NA), 'st': st, 'mins': round(a.get('minutes', 0)), 'web': a.get('first', ''), 'bhid': m.get('bhid', '')})
+                     'messenger': m.get('messenger', NA), 'st': st, 'mins': round(a.get('minutes', 0)), 'web': a.get('first', ''), 'bhid': m.get('bhid', ''),
+                     'pd': pm.get('pdate', '') if pm.get('paid') else '', 'rev': round(pm.get('revenue', 0))})
     regs.sort(key=lambda r: (r['date'], r['time']), reverse=True)
     meta = {'members': len(members), 'regs': regs, 'unknown_viewers': unknown_viewers, 'campaigns': campaigns,
             'clickers': sorted(clickers, key=lambda c: (c['date'], c['time']), reverse=True),  # имена, контакты и чат — только в зашифрованных данных
