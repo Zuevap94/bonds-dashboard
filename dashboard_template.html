@@ -423,6 +423,7 @@ function init(data) {
   setupCamps();
   $('#refresh').addEventListener('click', refresh);
   draw();
+  syncDone();
 }
 
 /* ---- данные под фильтры ---- */
@@ -836,6 +837,7 @@ function exportCut() {   // таблица «Откуда приходят» в 
 
 /* ---- вкладка «Нажали кнопку тарифа»: список людей из отчётов Бизона, чтобы им написать ---- */
 function showView(v, quiet) {
+  if (v === 'click' && DATA && doneShared !== null) syncDone();   // свежие отметки с других устройств
   if (v !== 'click' && v !== 'regs') v = 'main';
   root.querySelectorAll('#views button').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#vMain').hidden = v !== 'main'; $('#vClick').hidden = v !== 'click'; $('#vRegs').hidden = v !== 'regs';
@@ -851,18 +853,58 @@ function clickList(key) {
 const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const ORDER = { paid: ['ok', 'Оплатил'], order: ['warn', 'Оформил заказ'], '': ['bad', 'Нет заказа'] };
 const MSGN = { telegram: 'Telegram', max: 'MAX' };
-/* «Написал»: отметка хранится в этом браузере — человек уходит вниз своего эфира и больше не висит в счётчике */
-const DONE_KEY = 'zd_done';
-let DONE = {}; try { DONE = JSON.parse(localStorage.getItem(DONE_KEY) || '{}') || {}; } catch (e) {}
-const doneKey = c => c.date + '|' + (c.email || c.phone || c.name || '');
+/* «Написал»: человек уходит вниз своего эфира и больше не висит в счётчике. Отметки общие для всех устройств — переменная
+   DASHBOARD_DONE в репозитории GitHub (токен кнопки «Обновить», право Variables). В переменной только хэши, без почт и телефонов.
+   Если доступа нет — отметки живут в этом браузере. */
+const DONE_KEY = 'zd_done', DONE_VAR = 'DASHBOARD_DONE';
+const hash = str => { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36); };
+const doneKey = c => hash(c.date + '|' + (c.email || c.phone || c.name || ''));
+let DONE = {}, doneShared = null;   // null — ещё не знаем, true — общие, false — только этот браузер
+try { const old = JSON.parse(localStorage.getItem(DONE_KEY) || '{}') || {}; Object.keys(old).forEach(k => { DONE[k.includes('|') ? hash(k) : k] = old[k]; }); } catch (e) {}
 const isDone = c => !!DONE[doneKey(c)];
+const doneLocal = () => { try { localStorage.setItem(DONE_KEY, JSON.stringify(DONE)); } catch (e) {} };
+function ghDone(method, body) {
+  const m = (DATA && DATA.meta) || {}, repo = m.repo || 'Zuevap94/bonds-dashboard';
+  if (!m.trigger_token) return Promise.reject(new Error('нет токена'));
+  return fetch('https://api.github.com/repos/' + repo + '/actions/variables' + (method === 'POST' ? '' : '/' + DONE_VAR), { method, cache: 'no-store',
+    headers: { Authorization: 'Bearer ' + m.trigger_token, Accept: 'application/vnd.github+json' }, body: body ? JSON.stringify(body) : undefined });
+}
+async function doneRemote() {   // {map, existed}; null — нет доступа
+  const r = await ghDone('GET');
+  if (r.status === 404) return { map: {}, existed: false };
+  if (!r.ok) return null;
+  try { return { map: JSON.parse((await r.json()).value || '{}') || {}, existed: true }; } catch (e) { return { map: {}, existed: true }; }
+}
+async function doneSave(map, existed) {
+  const value = JSON.stringify(map);
+  const r = existed ? await ghDone('PATCH', { name: DONE_VAR, value }) : await ghDone('POST', { name: DONE_VAR, value });
+  if (!r.ok) throw new Error('GitHub ' + r.status);
+}
+async function syncDone(change) {   // change: [ключ, дата | null] — отметить / снять; без него — просто подтянуть чужие отметки
+  try {
+    const remote = await doneRemote();
+    if (remote === null) throw new Error('нет доступа');
+    const existed = remote.existed, map = Object.assign({}, remote.map);
+    let dirty = false;
+    if (doneShared === null) { let first = true; try { first = !localStorage.getItem('zd_done_shared'); } catch (e) {}
+      if (first) Object.keys(DONE).forEach(k => { if (!map[k]) { map[k] = DONE[k]; dirty = true; } }); }   // перенести отметки этого браузера
+    if (change) { if (change[1]) map[change[0]] = change[1]; else delete map[change[0]]; dirty = true; }
+    const cut = shift(today(), -60); Object.keys(map).forEach(k => { if (map[k] < cut) { delete map[k]; dirty = true; } });   // старше 60 дней — не нужны
+    if (dirty) await doneSave(map, existed);
+    DONE = map; doneShared = true; try { localStorage.setItem('zd_done_shared', '1'); } catch (e) {}
+  } catch (e) { doneShared = false; }
+  doneLocal(); if (DATA) drawClicks();
+}
 function drawClicks() {
   const list = clickList(), todo = list.filter(c => !c.order && !isDone(c)).length;
   $('#clickN').textContent = todo ? String(todo) : '';
   $('#clickN').title = todo ? todo + ' без заказа, ещё не написали' : '';
   if (!list.length) { $('#clickStat').innerHTML = ''; $('#clickList').innerHTML = '<div class="empty">За выбранный период никто не нажимал кнопку тарифа</div>'; return; }
   const cnt = k => list.filter(c => c.order === k).length;
-  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>` + (list.some(isDone) ? `<span class="chip">написали ${fmt(list.filter(isDone).length)}</span>` : '');
+  $('#clickStat').innerHTML = `<span><b>${fmt(list.length)}</b> ${plural(list.length, 'нажатие', 'нажатия', 'нажатий')}</span><span class="chip bad">${fmt(cnt(''))} без заказа</span><span class="chip warn">${fmt(cnt('order'))} оформили</span><span class="chip ok">${fmt(cnt('paid'))} оплатили</span>` + (list.some(isDone) ? `<span class="chip">написали ${fmt(list.filter(isDone).length)}</span>` : '')
+    + (doneShared === false ? `<span class="chip warn" title="Нет доступа к общим отметкам в GitHub: отметки «Написал» видны только в этом браузере">отметки только в этом браузере</span>` : doneShared ? `<span class="chip" title="Отметки «Написал» общие для всех устройств">отметки общие ✓</span>` : '');
   $('#clickList').innerHTML = peopleHtml(list);
   const chat = clickList('chatters');
   $('#chatList').innerHTML = chat.length ? peopleHtml(chat) : '<div class="empty">За выбранный период никто не писал в чат</div>';
@@ -1071,10 +1113,9 @@ function exportRegs() {
 
 root.addEventListener('click', e => {   // «Написал» / вернуть
   const b = e.target.closest && e.target.closest('[data-done]'); if (!b) return;
-  const k = b.dataset.done;
-  if (DONE[k]) delete DONE[k]; else DONE[k] = today();
-  try { localStorage.setItem(DONE_KEY, JSON.stringify(DONE)); } catch (e) {}
-  drawClicks();
+  const k = b.dataset.done, v = DONE[k] ? null : today();
+  if (v) DONE[k] = v; else delete DONE[k];
+  doneLocal(); drawClicks(); syncDone([k, v]);
 });
 root.addEventListener('click', e => {   // «MAX: скопировать номер»
   const a = e.target.closest && e.target.closest('[data-copy]'); if (!a) return;
