@@ -310,7 +310,7 @@ const LAYOUT = `
   <div class="views" id="views" role="tablist"><button data-v="main" class="on" role="tab">Аналитика</button><button data-v="regs" role="tab" title="Кто и когда зарегистрировался — по дням">Регистрации</button><button data-v="click" role="tab" title="Нажали кнопку тарифа или писали в чат — за выбранный период">Кому написать<b id="clickN"></b></button></div>
 </header>
 <div class="bar"><div class="filters">
-  <select id="fFunnel" aria-label="Воронка"><option value="">Все воронки</option><option>Реклама</option><option>Органика</option></select>
+  <select id="fFunnel" aria-label="Воронка"><option value="">Все воронки</option><option value="Реклама">Реклама → гайд</option><option value="Реклама вебинар">Реклама → вебинар</option><option>Органика</option></select>
   <select id="fSource" aria-label="Источник"><option value="">Все источники</option></select>
   <select id="fMedium" aria-label="Канал"><option value="">Все каналы</option></select>
   <select id="fMsg" aria-label="Мессенджер"><option value="">Все мессенджеры</option></select>
@@ -378,8 +378,9 @@ const LAYOUT = `
 <details class="card" style="margin-top:14px"><summary>Таблица по дням</summary><div class="inner"><div class="h2sub" style="margin:0 0 10px">Все цифры по дате события: визита, регистрации, эфира, заказа, оплаты</div><div class="tblwrap"><table id="tDay"></table></div></div></details>
 
 <details class="card" style="margin-top:14px"><summary>Как считаются цифры</summary><div class="inner"><dl class="defs">
-<dt>Визиты, открыли форму</dt><dd>Яндекс Метрика, счётчики рекламного и органического лендингов, по UTM визита.</dd>
-<dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама» или «…органика». Тестовые адреса исключены.</dd>
+<dt>Воронки</dt><dd>«Реклама → гайд» — лендинг /webinar с PDF-инструкцией, «Реклама → вебинар» — лендинг /bonds-urok с регистрацией сразу на эфир, «Органика» — /bonds-webinar. Расход кампании Директа ложится на ту рекламную воронку, куда ведут её визиты и регистрации.</dd>
+<dt>Визиты, открыли форму</dt><dd>Яндекс Метрика, отдельный счётчик у каждого лендинга, по UTM визита.</dd>
+<dt>Регистрации</dt><dd>GetCourse: человек добавлен в группу «Вебинар - облигации - реклама», «…реклама вебинар» или «…органика». Если человек записался на двух лендингах, считается первая регистрация. Тестовые адреса и метка utm_source=test исключены.</dd>
 <dt>Пришли, 30+ мин, дошли до оффера</dt><dd>Бизон: зрители комнат bonds, bonds-10, bonds-15, bonds-17. «Дошли до оффера» — были в комнате в ${OFFER_AT} или позже, когда на эфире уже кнопки тарифов. Человек считается один раз в день. Зрители, которых не нашли среди регистраций GetCourse (зашли по чужой ссылке или с другой почтой и телефоном), считаются органикой.</dd>
 <dt>Нажали кнопку тарифа</dt><dd>Бизон фиксирует нажатия на кнопки тарифов во время эфира.</dd>
 <dt>Вкладка «Регистрации»</dt><dd>Каждый, кто попал в группу вебинара в GetCourse, — по дню и времени добавления в группу. «Что дальше» — самый дальний шаг человека: был на эфире, дошёл до оффера, нажал кнопку тарифа, оформил заказ, оплатил.</dd>
@@ -777,7 +778,7 @@ function msgVerdict(g, NAMES) {
 
 /* ---- таблицы ---- */
 // во вкладке «Кампания» — только реклама: у органики кампаний нет, там метки ссылок из профилей
-const cutRows = list => cut === 'campaign' ? list.filter(r => r.funnel === 'Реклама') : list;
+const cutRows = list => cut === 'campaign' ? list.filter(r => (r.funnel || '').startsWith('Реклама')) : list;   // обе рекламные воронки: гайд и вебинар
 function drawCut(list) {
   list = cutRows(list);
   const keyLabel = { source: 'Источник', medium: 'Канал', campaign: 'Кампания', messenger: 'Мессенджер', funnel: 'Воронка' }[cut];
@@ -946,7 +947,7 @@ function exportClicks() {
 }
 
 /* ---- регистрации: кто и когда записался ---- */
-const FUN = [['Реклама', '#2F7D52'], ['Органика', '#D69A2D']];   // цвет закреплён за воронкой, не за порядком
+const FUN = [['Реклама', '#2F7D52'], ['Реклама вебинар', '#3E6FB0'], ['Органика', '#D69A2D']];   // цвет закреплён за воронкой, не за порядком
 const REGST = { paid: ['ok', 'Оплатил'], order: ['warn', 'Оформил заказ'], click: ['hi', 'Нажал кнопку тарифа'], offer: ['', 'Дошёл до оффера'], came: ['', 'Был на эфире'] };
 function regBase() {   // все фильтры, кроме периода
   const f = $('#fFunnel').value, s = $('#fSource').value, m = $('#fMedium').value, g = $('#fMsg').value;

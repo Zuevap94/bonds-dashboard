@@ -25,8 +25,8 @@ DATA = ROOT / 'data'; OUT = ROOT / 'out'; LOGS = ROOT / 'logs'
 for d in (DATA, OUT, LOGS): d.mkdir(exist_ok=True)
 
 START = dt.date(2026, 10, 20)          # запуск воронки — раньше данных нет
-GROUPS = {5009549: 'Реклама', 5011602: 'Органика'}
-COUNTERS = {'METRIKA_COUNTER_ADS': 'Реклама', 'METRIKA_COUNTER_ORGANIC': 'Органика'}
+GROUPS = {5009549: 'Реклама', 5011602: 'Органика', 5049662: 'Реклама вебинар'}  # «Реклама» — лендинг с гайдом /webinar, «Реклама вебинар» — /bonds-urok
+COUNTERS = {'METRIKA_COUNTER_ADS': 'Реклама', 'METRIKA_COUNTER_ORGANIC': 'Органика', 'METRIKA_COUNTER_ADS_WEBINAR': 'Реклама вебинар'}
 ROOMS = ('121345:bonds', '121345:bonds-10', '121345:bonds-15', '121345:bonds-17')
 SLOTS = {'121345:bonds': '19', '121345:bonds-10': '10', '121345:bonds-15': '15', '121345:bonds-17': '17'}  # комната → час эфира
 OFFER_MIN = 81                         # в сценарии bonds кнопки тарифов появляются на 1:21:23
@@ -62,7 +62,7 @@ def load_env():
         if v: env[k] = v
     global EXCLUDE_EMAILS
     EXCLUDE_EMAILS |= {e.strip().lower() for e in env.get('EXCLUDE_EMAILS', '').split(',') if e.strip()}
-    env.setdefault('GETCOURSE_ACCOUNT', 'artemzuev'); env.setdefault('METRIKA_COUNTER_ADS', '113735882'); env.setdefault('METRIKA_COUNTER_ORGANIC', '113735885')
+    env.setdefault('GETCOURSE_ACCOUNT', 'artemzuev'); env.setdefault('METRIKA_COUNTER_ADS', '113735882'); env.setdefault('METRIKA_COUNTER_ORGANIC', '113735885'); env.setdefault('METRIKA_COUNTER_ADS_WEBINAR', '114311468')
     missing = [k for k in ('GETCOURSE_ACCOUNT', 'GETCOURSE_KEY', 'BIZON_TOKEN', 'METRIKA_TOKEN', 'METRIKA_COUNTER_ADS', 'METRIKA_COUNTER_ORGANIC') if not env.get(k)]
     if missing:
         raise SystemExit('В keys.env не заполнены: ' + ', '.join(missing))
@@ -385,7 +385,7 @@ def spend():
     return out
 
 
-def direct(env):
+def direct(env, camp_funnel=None):
     """Яндекс Директ, API отчётов: расход по дням и кампаниям (с НДС) → ({(date, 'Реклама', 'yandex', 'cpc', campaign_id): сумма}, {campaign_id: название}).
     Названия уходят только в зашифрованные данные — по ним дашборд подписывает кампании и даёт отмечать их галочками.
     Кампания = её номер в Директе: в объявлениях ставим utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id},
@@ -420,7 +420,7 @@ def direct(env):
         if only and cid not in only: continue
         try: cost = float(row.get('Cost') or 0)
         except ValueError: continue
-        if cost: out[(row['Date'], 'Реклама', 'yandex', 'cpc', cid)] += cost; names[cid] = row.get('CampaignName', '')
+        if cost: out[(row['Date'], (camp_funnel or {}).get(cid, 'Реклама'), 'yandex', 'cpc', cid)] += cost; names[cid] = row.get('CampaignName', '')
     log('Директ: кампаний с расходом', len(names))  # суммы и названия в лог не пишем — логи GitHub публичные
     return out, names
 
@@ -436,7 +436,13 @@ def build(env):
         c['order'] = 'paid' if pm.get('paid') else 'order' if pm.get('orders') else ''
     cost, campaigns = spend(), {}
     try:
-        dcost, campaigns = direct(env)
+        votes = defaultdict(lambda: defaultdict(int))  # кампания → воронка, куда ведут её визиты и регистрации (гайд или вебинар)
+        for (d, fn, src, med, camp), v in parts['metrika'].items():
+            if fn.startswith('Реклама'): votes[camp][fn] += v['visits']
+        for m in members.values():
+            if m['funnel'].startswith('Реклама'): votes[m['campaign']][m['funnel']] += 5
+        camp_funnel = {c: max(f, key=f.get) for c, f in votes.items()}
+        dcost, campaigns = direct(env, camp_funnel)
         for k, v in dcost.items(): cost[k] += v
     except Exception as e:  # без Директа дашборд всё равно собирается — расход просто не подтянется
         log('Директ: не удалось получить расход —', e)

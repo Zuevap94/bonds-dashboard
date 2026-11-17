@@ -27,6 +27,7 @@ jobs:
           GETCOURSE_ACCOUNT: artemzuev
           METRIKA_COUNTER_ADS: '113735882'
           METRIKA_COUNTER_ORGANIC: '113735885'
+          METRIKA_COUNTER_ADS_WEBINAR: '114311468'
           GETCOURSE_KEY: ${{ secrets.GETCOURSE_KEY }}
           BIZON_TOKEN: ${{ secrets.BIZON_TOKEN }}
           METRIKA_TOKEN: ${{ secrets.METRIKA_TOKEN }}
